@@ -1,0 +1,84 @@
+0 keeps rows forever.
+192.168.1.20 or hostname
+A route answers this name and every subdomain — before any other filter, including allow and deny rules.
+Add route
+Answer a name — and every subdomain — with a fixed record instead of asking upstream. Private addresses and local names are welcome here; the route is checked before every other filter.
+Answer
+Answered
+Any RFC 8484 endpoint works.
+Blocked queries now answer {v}
+Blocked queries
+Confirm?
+Currently pinned by the UPSTREAM_URL deployment variable. Saving a provider here takes over.
+Custom fallback URL (optional)
+Default
+DoH URL
+Domain response routes
+Domain response routing
+Domain
+Drops on day {n}.
+Each change is written to KV as you make it — there is nothing else to save.
+Enter a whole number of days between 0 and 3650.
+Fallback DNS server
+Fallback off
+Fallback server {v}
+Fallback: {u}
+Filters
+In use
+In use: {u} (UPSTREAM_FALLBACK_URL variable).
+In use: {u} (custom fallback URL).
+In use: {u} — built-in alternate ({l}).
+Keep rows for
+Leave empty to use the built-in alternate provider. The fallback answers in place of the primary only after the primary fails; NXDOMAIN from the primary is a real answer and is never retried.
+Log kept for {n} days
+Log kept forever
+Needs an IPv4 or IPv6 address, or a hostname to point at.
+Needs an https:// URL, like https://doh.example.com/dns-query.
+Needs an https:// template containing {?targethost,targetpath}.
+No answer
+No provider saved yet — this is the built-in default.
+Off — if the primary resolver fails, the query fails too.
+Older rows are deleted by a scheduled job.
+On, but no fallback server is available.
+Open list
+Provider
+Queries are encrypted for the resolver and posted through this relay, so neither end sees both the name and your network.
+Query log
+Reading current settings…
+Relay and resolver
+Relay template
+Remove route
+Remove
+Resolver
+Response
+Retry a second server when this one is unreachable, errors, or answers SERVFAIL/REFUSED.
+Route TTL in seconds
+Routes are unaffected — they always answer with their own record.
+Save fallback
+Save provider
+Save response
+Save retention
+Save settings
+Saved in this dashboard.
+Saves as a CNAME to {v}.
+Saves as an {t} record for {v}.
+Settings
+TTL must be a whole number of seconds between 0 and 86400.
+Test connection
+Test upstream
+The worker must be able to reach this URL over https.
+Upstream resolver
+Upstream:
+What this resolver sends back for a name that a filter stopped.
+answered in {n} ms
+days
+off
+on
+records
+relay
+removed
+route
+routes
+via
+where allowed queries are forwarded
+· unsaved change above
