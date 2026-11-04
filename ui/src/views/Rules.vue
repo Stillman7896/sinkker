@@ -6,6 +6,7 @@ import AppButton from '../components/AppButton.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import Segmented from '../components/Segmented.vue';
 import { normalizeDomain } from '../validate.js';
+import { t } from '../i18n.js';
 
 const domain = ref('');
 const kind = ref('deny');
@@ -22,7 +23,7 @@ const visibleRules = computed(() =>
 const customCount = computed(() => state.rules.filter((r) => r.src !== 'blocklist').length);
 const exceptionCount = computed(() => state.rules.length - customCount.value);
 const viewTitle = computed(() =>
-  view.value === 'deny' ? 'Block rules' : view.value === 'allow' ? 'Allow rules' : 'All rules',
+  view.value === 'deny' ? t('Block rules') : view.value === 'allow' ? t('Allow rules') : t('All rules'),
 );
 
 // What the worker will store for the typed value, or '' when it would reject
@@ -31,9 +32,9 @@ const viewTitle = computed(() =>
 const normalized = computed(() => normalizeDomain(domain.value.trim()));
 const invalid = computed(() => Boolean(domain.value.trim()) && !normalized.value);
 const note = computed(() => {
-  if (invalid.value) return 'Needs a real domain, like ads.example.net.';
-  if (normalized.value && normalized.value !== domain.value.trim()) return `Saves as ${normalized.value}.`;
-  return 'A rule applies to the domain and every subdomain of it. Allow wins over the blocklist.';
+  if (invalid.value) return t('Needs a real domain, like ads.example.net.');
+  if (normalized.value && normalized.value !== domain.value.trim()) return t('Saves as {d}.').replace('{d}', normalized.value);
+  return t('A rule applies to the domain and every subdomain of it. Allow wins over the blocklist.');
 });
 
 async function addRule() {
@@ -41,8 +42,8 @@ async function addRule() {
   if (!value) return;
   try {
     await runOp('rules.add', {
-      verb: 'Add rule',
-      ok: (r) => `${r.domain} ${r.kind === 'deny' ? 'now blocked' : 'now allowed'}`,
+      verb: t('Add rule'),
+      ok: (r) => `${r.domain} ${r.kind === 'deny' ? t('now blocked') : t('now allowed')}`,
       undo: async (r) => {
         await api.deleteRule(r.domain);
         await loadRules();
@@ -61,10 +62,10 @@ async function importBulk() {
   if (!bulkReady.value) return;
   const text = bulkText.value.trim();
   await runOp('rules.bulk', {
-    verb: 'Import rules',
+    verb: t('Import rules'),
     ok: (r) => (r.skipped.length
-      ? `${r.added} added, ${r.skipped.length} left out`
-      : `${r.added} rules added`),
+      ? t('{n} added, {m} left out').replace('{n}', r.added).replace('{m}', r.skipped.length)
+      : t('{n} rules added').replace('{n}', r.added)),
     fn: async () => {
       const r = await api.bulkRules(bulkKind.value, text);
       await loadRules();
@@ -81,8 +82,8 @@ const bulkReady = computed(() => bulkLines.value.filter((l) => normalizeDomain(l
 
 async function removeRule(r) {
   await runOp(`rules.del:${r.domain}`, {
-    verb: 'Remove rule',
-    ok: () => `${r.domain} removed`,
+    verb: t('Remove rule'),
+    ok: () => `${r.domain} ${t('removed')}`,
     undo: async (res) => {
       await api.addRule(res.domain, res.kind);
       await loadRules();
@@ -105,21 +106,21 @@ function onFilter(e) {
   <div class="space-y-6">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="text-[21px] font-semibold tracking-tight">Rules</h1>
+        <h1 class="text-[21px] font-semibold tracking-tight">{{ t('Rules') }}</h1>
         <p class="hint mt-1">
           Custom answers run before the shared blocklist. {{ customCount }}
-          {{ customCount === 1 ? 'custom rule' : 'custom rules' }}<template v-if="exceptionCount">
-          , {{ exceptionCount }} allow {{ exceptionCount === 1 ? 'exception' : 'exceptions' }} from the blocklist</template> on file.
+          {{ customCount === 1 ? t('custom rule') : t('custom rules') }}<template v-if="exceptionCount">
+          , {{ exceptionCount }} {{ exceptionCount === 1 ? t('allow exception') : t('allow exceptions') }} {{ t('from the blocklist') }}</template> on file.
         </p>
       </div>
       <AppButton @click="showBulk = !showBulk">
-        {{ showBulk ? 'Close bulk import' : 'Bulk import' }}
+        {{ showBulk ? t('Close bulk import') : t('Bulk import') }}
       </AppButton>
     </div>
 
     <!-- Add one -->
     <section class="panel p-5">
-      <h2 class="text-[15px] font-medium">Add a rule</h2>
+      <h2 class="text-[15px] font-medium">{{ t('Add a rule') }}</h2>
       <form class="mt-3 flex flex-col gap-2.5" @submit.prevent="addRule">
         <div class="flex flex-wrap items-center gap-2.5">
           <input
@@ -128,7 +129,7 @@ function onFilter(e) {
             type="text"
             class="field flex-1 min-w-[180px] st"
             placeholder="ads.example.net"
-            aria-label="Domain"
+            :aria-label="t('Domain')"
             autocapitalize="none"
             spellcheck="false"
             :aria-invalid="invalid"
@@ -137,10 +138,10 @@ function onFilter(e) {
           <Segmented
             v-model="kind"
             :options="[
-              { value: 'deny', label: 'Block' },
-              { value: 'allow', label: 'Allow' },
+              { value: 'deny', label: t('Block') },
+              { value: 'allow', label: t('Allow') },
             ]"
-            label="Answer"
+            :label="t('Answer')"
           />
         </div>
         <AppButton
@@ -150,7 +151,7 @@ function onFilter(e) {
           :disabled="!normalized"
           class="w-full sm:w-auto sm:self-start"
         >
-          Add rule
+          {{ t('Add rule') }}
         </AppButton>
       </form>
       <p id="rule-note" class="hint mt-2.5" :class="invalid && 'text-block'" aria-live="polite">
@@ -160,8 +161,8 @@ function onFilter(e) {
 
     <!-- Bulk -->
     <section v-if="showBulk" class="panel p-5 rise-in">
-      <h2 class="text-[15px] font-medium">Paste many domains</h2>
-      <p class="hint mt-1">One per line, or separated by commas.</p>
+      <h2 class="text-[15px] font-medium">{{ t('Paste many domains') }}</h2>
+      <p class="hint mt-1">{{ t('One per line, or separated by commas.') }}</p>
       <textarea
         v-model="bulkText"
         @input="bulkText = $event.target.value"
@@ -169,23 +170,23 @@ function onFilter(e) {
         class="area w-full mt-3"
         placeholder="ads.example.net&#10;beacon.partner.dev&#10;tracker.example.com"
         spellcheck="false"
-        aria-label="Domains to import"
+        :aria-label="t('Domains to import')"
       />
       <div class="mt-3 flex flex-wrap items-center gap-2.5">
         <Segmented
           v-model="bulkKind"
           :options="[
-            { value: 'deny', label: 'Block them' },
-            { value: 'allow', label: 'Allow them' },
+            { value: 'deny', label: t('Block them') },
+            { value: 'allow', label: t('Allow them') },
           ]"
-          label="Kind"
+          :label="t('Kind')"
         />
         <AppButton variant="solid" busy-key="rules.bulk" :disabled="!bulkReady" @click="importBulk">
-          Import
+          {{ t('Import') }}
         </AppButton>
         <span class="hint">
-          {{ bulkReady }} of {{ bulkLines.length }} lines ready
-          <template v-if="bulkLines.length && bulkReady < bulkLines.length">— the rest are not domains</template>
+          {{ bulkReady }} / {{ bulkLines.length }} {{ t('lines ready') }}
+          <template v-if="bulkLines.length && bulkReady < bulkLines.length">{{ t('— the rest are not domains') }}</template>
         </span>
       </div>
     </section>
@@ -197,18 +198,18 @@ function onFilter(e) {
         <Segmented
           v-model="view"
           :options="[
-            { value: 'all', label: 'All' },
-            { value: 'deny', label: 'Block' },
-            { value: 'allow', label: 'Allow' },
+            { value: 'all', label: t('All') },
+            { value: 'deny', label: t('Block') },
+            { value: 'allow', label: t('Allow') },
           ]"
-          label="View"
+          :label="t('View')"
         />
         <label class="ml-auto flex items-center gap-2">
-          <span class="sr-only">Filter rules</span>
+          <span class="sr-only">{{ t('Filter rules') }}</span>
           <input
             type="text"
             class="field w-44 sm:w-56"
-            placeholder="Filter…"
+            :placeholder="t('Filter…')"
             :value="ruleFilter"
             @input="onFilter"
           />
@@ -217,12 +218,12 @@ function onFilter(e) {
 
       <div v-if="visibleRules.length" class="overflow-x-auto">
         <table class="w-full min-w-[420px] border-collapse text-left">
-          <caption class="sr-only">Custom allow and deny rules</caption>
+          <caption class="sr-only">{{ t('Custom allow and deny rules') }}</caption>
           <thead class="text-[12.5px] text-muted border-b border-line">
             <tr>
-              <th scope="col" class="px-5 py-2 font-medium">Domain</th>
-              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">Answer</th>
-              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">Source</th>
+              <th scope="col" class="px-5 py-2 font-medium">{{ t('Domain') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">{{ t('Answer') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">{{ t('Source') }}</th>
               <th scope="col" class="px-5 py-2 font-medium text-right"><span class="sr-only">Action</span></th>
             </tr>
           </thead>
@@ -236,7 +237,7 @@ function onFilter(e) {
                   class="text-[12px] st rounded border px-2 py-0.5"
                   :class="r.kind === 'deny' ? 'text-block border-block/40' : 'text-pass border-pass/40'"
                 >
-                  {{ r.kind === 'deny' ? 'blocked' : 'allowed' }}
+                  {{ r.kind === 'deny' ? t('blocked') : t('allowed') }}
                 </span>
               </td>
               <td class="px-3 py-3 whitespace-nowrap">
@@ -244,22 +245,22 @@ function onFilter(e) {
                   class="text-[12px] st rounded border px-2 py-0.5"
                   :class="r.src === 'blocklist' ? 'text-muted border-line' : 'text-ink border-line'"
                   :title="r.src === 'blocklist'
-                    ? 'From the blocklist file (@@ exception) — edit the list, not this dashboard'
-                    : 'Set in this dashboard'"
+                    ? t('From the blocklist file (@@ exception) — edit the list, not this dashboard')
+                    : t('Set in this dashboard')"
                 >
-                  {{ r.src === 'blocklist' ? 'blocklist' : 'custom' }}
+                  {{ r.src === 'blocklist' ? t('blocklist') : t('custom') }}
                 </span>
               </td>
               <td class="px-5 py-3 text-right whitespace-nowrap">
                 <ConfirmButton
                   v-if="r.src !== 'blocklist'"
                   small
-                  label="Remove"
-                  armed-label="Confirm?"
+                  :label="t('Remove')"
+                  :armed-label="t('Confirm?')"
                   :busy-key="`rules.del:${r.domain}`"
                   @confirm="removeRule(r)"
                 />
-                <span v-else class="hint text-[12px]">read-only</span>
+                <span v-else class="hint text-[12px]">{{ t('read-only') }}</span>
               </td>
             </tr>
           </tbody>
@@ -269,19 +270,19 @@ function onFilter(e) {
       <div v-if="!visibleRules.length" class="px-5 py-10 text-center">
         <p class="text-[14px] font-medium">
           {{ ruleFilter
-            ? `No rule matches “${ruleFilter}”.`
-            : view === 'deny' ? 'No block rules yet.'
-            : view === 'allow' ? 'No allow rules yet.'
-            : 'No custom rules yet.' }}
+            ? t('No rule matches “{f}”.').replace('{f}', ruleFilter)
+            : view === 'deny' ? t('No block rules yet.')
+            : view === 'allow' ? t('No allow rules yet.')
+            : t('No custom rules yet.') }}
         </p>
         <p class="hint mt-1.5">
           {{ ruleFilter
-            ? 'Try part of the domain, without the top-level suffix.'
+            ? t('Try part of the domain, without the top-level suffix.')
             : view === 'deny'
-              ? 'Add a domain above to block it even when the shared list lets it through.'
+              ? t('Add a domain above to block it even when the shared list lets it through.')
               : view === 'allow'
-                ? 'Allow rules force an answer. @@ exceptions in the blocklist file show up here too.'
-                : 'Add a domain above to force an answer, or force-allow one the shared blocklist stops.' }}
+                ? t('Allow rules force an answer. @@ exceptions in the blocklist file show up here too.')
+                : t('Add a domain above to force an answer, or force-allow one the shared blocklist stops.') }}
         </p>
       </div>
     </section>
