@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { state, runOp, loadStats, setRoute } from '../store.js';
+import { t } from '../i18n.js';
 import { BLOCKLIST_ENTRY_LIMIT } from '../validate.js';
 import AppButton from '../components/AppButton.vue';
 import CopyField from '../components/CopyField.vue';
@@ -57,7 +58,7 @@ const tag = ref('');
 const TAG_RE = /^[a-z0-9](?:[a-z0-9_-]{0,62})$/;
 const tagOk = computed(() => TAG_RE.test(tag.value.trim().toLowerCase()));
 const tagProblem = computed(() =>
-  (tag.value.trim() && !tagOk.value) ? 'Letters, digits, dashes and underscores — e.g. “laptop”.' : ''
+  (tag.value.trim() && !tagOk.value) ? t('Letters, digits, dashes and underscores — e.g. “laptop”.') : ''
 );
 const taggedEndpoint = computed(() =>
   `${location.origin}/dns-query/${encodeURIComponent(tag.value.trim().toLowerCase())}`
@@ -66,33 +67,33 @@ const taggedEndpoint = computed(() =>
 const GUIDES = [
   {
     id: 'browsers',
-    label: 'Browsers',
+    label: t('Browsers'),
     lines: [
-      'Firefox — Settings → Privacy & Security → DNS over HTTPS → Max Protection → Custom, then paste the endpoint.',
-      'Chrome / Edge — Settings → Privacy and security → Security → Use secure DNS → With → Custom, then paste the endpoint.',
+      t('Firefox — Settings → Privacy & Security → DNS over HTTPS → Max Protection → Custom, then paste the endpoint.'),
+      t('Chrome / Edge — Settings → Privacy and security → Security → Use secure DNS → With → Custom, then paste the endpoint.'),
     ],
   },
   {
     id: 'router',
-    label: 'Router',
+    label: t('Router'),
     lines: [
-      'AdGuard Home — Settings → DNS settings → Upstream DNS servers, add the endpoint, then Test upstreams.',
-      'Pi-hole — run cloudflared against the endpoint and point Pi-hole at 127.0.0.1#5053.',
+      t('AdGuard Home — Settings → DNS settings → Upstream DNS servers, add the endpoint, then Test upstreams.'),
+      t('Pi-hole — run cloudflared against the endpoint and point Pi-hole at 127.0.0.1#5053.'),
     ],
     snippet: 'cloudflared proxy-dns --upstream {endpoint} --port 5053',
   },
   {
     id: 'mobile',
-    label: 'Mobile',
+    label: t('Mobile'),
     lines: [
-      'Android — Private DNS only speaks DoT, so use a DoH client app and point it at the endpoint.',
-      'iOS / macOS — install a DoH configuration profile or use a DoH client app; both just need the endpoint.',
+      t('Android — Private DNS only speaks DoT, so use a DoH client app and point it at the endpoint.'),
+      t('iOS / macOS — install a DoH configuration profile or use a DoH client app; both just need the endpoint.'),
     ],
   },
   {
     id: 'curl',
-    label: 'curl',
-    lines: ['query.bin is a raw DNS message; the response is one too.'],
+    label: t('curl'),
+    lines: [t('query.bin is a raw DNS message; the response is one too.')],
     snippet: "curl -sS -H 'content-type: application/dns-message' \\\n  --data-binary @query.bin {endpoint} | xxd",
   },
 ];
@@ -101,7 +102,7 @@ const currentGuide = computed(() => GUIDES.find((g) => g.id === guide.value) || 
 const snippet = computed(() => (currentGuide.value.snippet || '').replaceAll('{endpoint}', endpoint));
 
 async function refresh() {
-  await runOp('overview.refresh', { verb: 'Refresh overview', ok: 'Overview up to date', fn: loadStats });
+  await runOp('overview.refresh', { verb: t('Refresh overview'), ok: t('Overview up to date'), fn: loadStats });
 }
 </script>
 
@@ -109,11 +110,11 @@ async function refresh() {
   <div class="space-y-7">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="text-[21px] font-semibold tracking-tight">Overview</h1>
-        <p class="hint mt-1">What this resolver has seen and what it stopped.</p>
+        <h1 class="text-[21px] font-semibold tracking-tight">{{ t('Overview') }}</h1>
+        <p class="hint mt-1">{{ t('What this resolver has seen and what it stopped.') }}</p>
       </div>
       <AppButton busy-key="overview.refresh" :disabled="state.statsError === 'no_d1'" @click="refresh">
-        Refresh
+        {{ t('Refresh') }}
       </AppButton>
     </div>
 
@@ -121,14 +122,14 @@ async function refresh() {
     <section class="panel p-5">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 class="text-[15px] font-medium">Connect a client</h2>
-          <p class="hint mt-0.5">Any DoH client pointed at this endpoint is filtered — no agent, no extra deploy.</p>
+          <h2 class="text-[15px] font-medium">{{ t('Connect a client') }}</h2>
+          <p class="hint mt-0.5">{{ t('Any DoH client pointed at this endpoint is filtered — no agent, no extra deploy.') }}</p>
         </div>
-        <AppButton small variant="solid" @click="setupOpen = true">Setup guide</AppButton>
+        <AppButton small variant="solid" @click="setupOpen = true">{{ t('Setup guide') }}</AppButton>
       </div>
 
       <div class="mt-4">
-        <CopyField :value="endpoint" label="DNS over HTTPS endpoint" />
+        <CopyField :value="endpoint" :label="t('DNS over HTTPS endpoint')" />
       </div>
 
       <!-- Tag builder: one URL per device, so the log shows who asked -->
@@ -138,8 +139,8 @@ async function refresh() {
           @input="tag = $event.target.value"
           type="text"
           class="field st sm:w-64"
-          placeholder="per-client tag, e.g. laptop"
-          aria-label="Client tag for the DoH URL"
+          :placeholder="t('per-client tag, e.g. laptop')"
+          :aria-label="t('Client tag for the DoH URL')"
           autocapitalize="none"
           spellcheck="false"
           :aria-invalid="Boolean(tagProblem)"
@@ -148,33 +149,33 @@ async function refresh() {
         <CopyField
           v-if="tagOk"
           :value="taggedEndpoint"
-          label="Tagged DoH endpoint"
+          :label="t('Tagged DoH endpoint')"
         />
         <p class="hint" :class="tagProblem && 'text-block'" aria-live="polite">
-          {{ tagProblem || 'Optional: copy the tagged URL instead and every query from that device is labelled on the Logs page, where the Client filter can show it alone.' }}
+          {{ tagProblem || t('Optional: copy the tagged URL instead and every query from that device is labelled on the Logs page, where the Client filter can show it alone.') }}
         </p>
       </div>
 
       <div class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
         <p class="hint">
-          Upstream: <span class="st text-ink">{{ state.upstream?.label || '—' }}</span> ·
+          {{ t('Upstream:') }} <span class="st text-ink">{{ state.upstream?.label || '—' }}</span> ·
           <button type="button" class="underline underline-offset-2 text-muted hover:text-ink" @click="setRoute('settings')">
-            change
+            {{ t('change') }}
           </button>
         </p>
         <p class="hint">
-          {{ counts.routes }} {{ counts.routes === 1 ? 'route answers locally' : 'routes answer locally' }}
+          {{ counts.routes }} {{ counts.routes === 1 ? t('route answers locally') : t('routes answer locally') }}
         </p>
       </div>
     </section>
 
-    <Modal :open="setupOpen" title="Point a client at this resolver" @close="setupOpen = false">
-      <CopyField :value="endpoint" label="DNS over HTTPS endpoint" />
+    <Modal :open="setupOpen" :title="t('Point a client at this resolver')" @close="setupOpen = false">
+      <CopyField :value="endpoint" :label="t('DNS over HTTPS endpoint')" />
       <CopyField
         v-if="tagOk"
         class="mt-2.5"
         :value="taggedEndpoint"
-        label="Tagged DoH endpoint"
+        :label="t('Tagged DoH endpoint')"
       />
       <p v-if="tagOk" class="hint mt-2">
         The tagged URL works in every guide below; queries logged through it carry the
@@ -185,7 +186,7 @@ async function refresh() {
         <Segmented
           v-model="guide"
           :options="GUIDES.map((g) => ({ value: g.id, label: g.label }))"
-          label="Client type"
+          :label="t('Client type')"
         />
       </div>
 
@@ -197,7 +198,7 @@ async function refresh() {
       </ul>
 
       <div v-if="snippet" class="mt-3.5">
-        <CopyField :value="snippet" label="Command" />
+        <CopyField :value="snippet" :label="t('Command')" />
       </div>
 
       <p class="hint mt-3.5">
@@ -207,22 +208,22 @@ async function refresh() {
 
       <template #footer>
         <div class="flex items-center justify-between gap-3">
-          <span class="hint">DoH only — plain port 53 is not served by this worker.</span>
-          <AppButton small @click="setupOpen = false">Done</AppButton>
+          <span class="hint">{{ t('DoH only — plain port 53 is not served by this worker.') }}</span>
+          <AppButton small @click="setupOpen = false">{{ t('Done') }}</AppButton>
         </div>
       </template>
     </Modal>
 
     <!-- Empty / unconfigured logging -->
     <div v-if="state.statsError === 'no_d1'" class="panel p-5 rise-in">
-      <p class="text-[15px] font-medium">No query history is being kept</p>
+      <p class="text-[15px] font-medium">{{ t('No query history is being kept') }}</p>
       <p class="hint mt-1.5 max-w-prose">
         The worker has no <span class="st">LOGS</span> binding, so there is nothing to count yet.
         Create a D1 database, reference it in <span class="st">wrangler.toml</span>, and redeploy:
         counts below start filling in on the next query.
       </p>
-      <AppButton variant="solid" class="mt-4" busy-key="overview.recheck" @click="runOp('overview.recheck', { verb: 'Check logging again', ok: 'Logging available', fn: loadStats }).catch(() => {})">
-        Check again
+      <AppButton variant="solid" class="mt-4" busy-key="overview.recheck" @click="runOp('overview.recheck', { verb: t('Check logging again'), ok: t('Logging available'), fn: loadStats }).catch(() => {})">
+        {{ t('Check again') }}
       </AppButton>
     </div>
 
@@ -230,28 +231,28 @@ async function refresh() {
       <!-- Counters -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="panel p-4">
-          <p class="text-[12.5px] text-muted">Queries logged</p>
+          <p class="text-[12.5px] text-muted">{{ t('Queries logged') }}</p>
           <p class="st text-[26px] mt-1 leading-none">{{ stats.total.toLocaleString() }}</p>
         </div>
         <div class="panel p-4">
-          <p class="text-[12.5px] text-muted">Stopped by policy</p>
+          <p class="text-[12.5px] text-muted">{{ t('Stopped by policy') }}</p>
           <p class="st text-[26px] mt-1 leading-none text-block">{{ blockedShare }}%</p>
-          <p class="hint mt-1">{{ blockedTotal.toLocaleString() }} queries</p>
+          <p class="hint mt-1">{{ blockedTotal.toLocaleString() }} {{ t('queries') }}</p>
         </div>
         <div class="panel p-4">
-          <p class="text-[12.5px] text-muted">Custom rules</p>
+          <p class="text-[12.5px] text-muted">{{ t('Custom rules') }}</p>
           <p class="st text-[26px] mt-1 leading-none">{{ counts.rules }}</p>
-          <p class="hint mt-1">{{ counts.routes }} routes · {{ counts.keywords }} keywords · {{ counts.tlds }} TLDs</p>
+          <p class="hint mt-1">{{ counts.routes }} {{ t('routes') }} · {{ counts.keywords }} {{ t('keywords') }} · {{ counts.tlds }} {{ t('TLDs') }}</p>
         </div>
         <div class="panel p-4">
-          <p class="text-[12.5px] text-muted">Blocklist entries in memory</p>
+          <p class="text-[12.5px] text-muted">{{ t('Blocklist entries in memory') }}</p>
           <p class="st text-[26px] mt-1 leading-none" :class="overEntryLimit && 'text-block'">
             {{ blocklistEntries.toLocaleString() }}
           </p>
           <p class="hint mt-1">
-            {{ blocklistLists }} {{ blocklistLists === 1 ? 'subscription' : 'subscriptions' }}
+            {{ blocklistLists }} {{ blocklistLists === 1 ? t('subscription') : t('subscriptions') }}
             <template v-if="blocklist?.totalExceptions">
-              · {{ blocklist.totalExceptions.toLocaleString() }} exceptions
+              · {{ blocklist.totalExceptions.toLocaleString() }} {{ t('exceptions') }}
             </template>
           </p>
         </div>
@@ -277,10 +278,10 @@ async function refresh() {
       <section class="panel p-5">
         <div class="flex items-baseline justify-between gap-4 flex-wrap">
           <div>
-            <h2 class="text-[15px] font-medium">Query volume by hour of day</h2>
-            <p class="hint mt-0.5">Last 7 days, local time. Peak {{ peak }} queries in an hour.</p>
+            <h2 class="text-[15px] font-medium">{{ t('Query volume by hour of day') }}</h2>
+            <p class="hint mt-0.5">{{ t('Last 7 days, local time. Peak {p} queries in an hour.').replace('{p}', peak) }}</p>
           </div>
-          <span class="st text-[12.5px] text-muted">{{ stats.last24h.reduce((a, b) => a + b, 0) }} total</span>
+          <span class="st text-[12.5px] text-muted">{{ stats.last24h.reduce((a, b) => a + b, 0) }} {{ t('total') }}</span>
         </div>
 
         <div class="mt-4 flex items-end gap-[3px] h-28" role="img" aria-label="Hourly query volume for the last seven days">
@@ -305,8 +306,8 @@ async function refresh() {
       <div class="grid lg:grid-cols-2 gap-4">
         <!-- Status mix -->
         <section class="panel p-5">
-          <h2 class="text-[15px] font-medium">Verification outcomes</h2>
-          <p class="hint mt-0.5">Share of logged queries by the filter that decided.</p>
+          <h2 class="text-[15px] font-medium">{{ t('Verification outcomes') }}</h2>
+          <p class="hint mt-0.5">{{ t('Share of logged queries by the filter that decided.') }}</p>
           <ul class="mt-4 space-y-3">
             <li v-for="r in byStatus" :key="r.status">
               <div class="flex items-baseline justify-between gap-3 text-[13px]">
@@ -327,9 +328,9 @@ async function refresh() {
         <!-- Top blocked -->
         <section class="panel p-5">
           <div class="flex items-baseline justify-between gap-3">
-            <h2 class="text-[15px] font-medium">Most blocked domains</h2>
+            <h2 class="text-[15px] font-medium">{{ t('Most blocked domains') }}</h2>
             <button type="button" class="text-[13px] text-muted hover:text-ink underline underline-offset-2" @click="setRoute('logs')">
-              Open logs
+              {{ t('Open logs') }}
             </button>
           </div>
           <ol class="mt-3">
@@ -343,19 +344,19 @@ async function refresh() {
               <span class="st text-[13px] text-muted">{{ r.n.toLocaleString() }}</span>
             </li>
           </ol>
-          <p v-if="!topBlocked.length" class="hint mt-3">Nothing blocked yet — this resolver is letting everything through.</p>
+          <p v-if="!topBlocked.length" class="hint mt-3">{{ t('Nothing blocked yet — this resolver is letting everything through.') }}</p>
         </section>
       </div>
 
       <p class="hint">
-        {{ counts.rules }} custom {{ counts.rules === 1 ? 'rule' : 'rules' }} on file —
-        <button type="button" class="text-ink underline underline-offset-2" @click="setRoute('rules')">manage them</button>.
+        {{ counts.rules }} {{ counts.rules === 1 ? t('custom rule on file') : t('custom rules on file') }} —
+        <button type="button" class="text-ink underline underline-offset-2" @click="setRoute('rules')">{{ t('manage them') }}</button>.
       </p>
     </template>
 
     <div v-else class="panel p-6 text-center text-muted text-[13px]">
       <span class="block w-5 h-5 mx-auto rounded-full border-2 border-beacon border-t-transparent spin" aria-hidden="true" />
-      <p class="mt-3">Reading the audit log…</p>
+      <p class="mt-3">{{ t('Reading the audit log…') }}</p>
     </div>
   </div>
 </template>

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { state, VIEWS, setRoute, initStore, signOut, pendingCount, boot, runOp } from './store.js';
 import { ApiError } from './api.js';
 import { themeMode, cycleTheme, THEME_LABEL, THEME_NEXT } from './theme.js';
+import { t, toggleLocale, langLabel } from './i18n.js';
 import ToastHost from './components/ToastHost.vue';
 import AppButton from './components/AppButton.vue';
 import Login from './views/Login.vue';
@@ -81,24 +82,30 @@ async function retryBoot() {
             role="status"
           >
             <span class="block w-3 h-3 rounded-full border-2 border-beacon border-t-transparent spin" aria-hidden="true" />
-            {{ pendingCount }} running
+            {{ pendingCount }} {{ t('running') }}
           </span>
 
           <button
             type="button"
             class="btn btn-sm"
-            :title="`Theme: ${THEME_LABEL[themeMode]} — ${THEME_NEXT[themeMode]}`"
-            :aria-label="`Theme: ${THEME_LABEL[themeMode]}. Activate for ${THEME_NEXT[themeMode].replace('next: ', '')}.`"
+            :title="`${t('Theme')}: ${t(THEME_LABEL[themeMode])} — ${t(THEME_NEXT[themeMode])}`"
+            :aria-label="`${t('Theme')}: ${t(THEME_LABEL[themeMode])}. Activate for ${t(THEME_NEXT[themeMode]).replace('next: ', '')}.`"
             @click="cycleTheme"
           >
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
               <path :d="THEME_ICON[themeMode]" />
               <circle v-if="themeMode === 'light'" cx="12" cy="12" r="3.4" />
             </svg>
-            <span class="hidden sm:inline">{{ THEME_LABEL[themeMode] }}</span>
+            <span class="hidden sm:inline">{{ t(THEME_LABEL[themeMode]) }}</span>
+          </button>
+          <button type="button" class="btn btn-sm" :title="`${t('Language')}: ${langLabel}`" :aria-label="`${t('Language')}: ${langLabel}`" @click="toggleLocale">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+              <path d="M4 6h16M9.5 6c-.8 4.5 1 9.5 5 12M14.5 6c.8 4.5-1 9.5-5 12M4.5 14h11" />
+            </svg>
+            <span class="hidden sm:inline">{{ langLabel }}</span>
           </button>
 
-          <button v-if="state.phase === 'ready'" type="button" class="btn btn-sm" @click="signOut">Sign out</button>
+          <button v-if="state.phase === 'ready'" type="button" class="btn btn-sm" @click="signOut">{{ t('Sign out') }}</button>
         </div>
       </div>
 
@@ -114,7 +121,7 @@ async function retryBoot() {
             :class="state.route === v.id ? 'bg-beacon text-black' : 'text-muted'"
             @click="setRoute(v.id)"
           >
-            {{ v.label }}
+            {{ t(v.label) }}
           </button>
         </div>
       </nav>
@@ -125,8 +132,8 @@ async function retryBoot() {
       <aside class="hidden md:block w-56 shrink-0 border-r border-line">
         <div class="sticky top-14 py-6 pr-4 pl-6 md:pl-8 space-y-5">
           <div v-for="g in groups" :key="g.id">
-            <p class="text-[12.5px] text-muted mb-2">{{ g.label }}</p>
-            <nav class="flex flex-col gap-1" :aria-label="g.label">
+            <p class="text-[12.5px] text-muted mb-2">{{ t(g.label) }}</p>
+            <nav class="flex flex-col gap-1" :aria-label="t(g.label)">
               <button
                 v-for="v in g.items"
                 :key="v.id"
@@ -139,7 +146,7 @@ async function retryBoot() {
                   : 'border-transparent text-muted hover:text-ink hover:bg-raised'"
                 @click="setRoute(v.id)"
               >
-                {{ v.label }}
+                {{ t(v.label) }}
               </button>
             </nav>
           </div>

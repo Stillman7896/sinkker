@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { state, login, boot, runOp } from '../store.js';
 import { ApiError } from '../api.js';
+import { t } from '../i18n.js';
 import AppButton from '../components/AppButton.vue';
 
 const password = ref('');
@@ -15,19 +16,19 @@ onMounted(() => pw.value?.focus());
 async function submit() {
   error.value = '';
   if (!password.value) {
-    error.value = 'Enter the dashboard password.';
+    error.value = t('Enter the dashboard password.');
     return;
   }
   try {
     await runOp('auth.login', {
-      verb: 'Sign in',
-      ok: 'Signed in',
+      verb: t('Sign in'),
+      ok: t('Signed in'),
       fn: () => login(password.value),
     });
     password.value = '';
   } catch (e) {
     // 401 from the password itself vs 401 because the cookie never stuck.
-    error.value = e.status === 401 && e.code !== 'no-cookie' ? 'That password did not match.' : e.message;
+    error.value = e.status === 401 && e.code !== 'no-cookie' ? t('That password did not match.') : e.message;
   }
 }
 
@@ -36,8 +37,8 @@ async function submit() {
  *  configured. Re-throw the phase as an ApiError so the toast cannot lie. */
 async function recheck() {
   await runOp('auth.recheck', {
-    verb: 'Check setup again',
-    ok: 'Configuration found — enter the password below',
+    verb: t('Check setup again'),
+    ok: t('Configuration found — enter the password below'),
     fn: async () => {
       await boot();
       if (state.phase === 'unconfigured') {
@@ -54,7 +55,7 @@ async function recheck() {
   <div class="max-w-md mx-auto pt-8 sm:pt-16 rise-in">
     <div class="panel shadow-[var(--shadow-card)] p-6 sm:p-7">
       <template v-if="unconfigured">
-        <h1 class="text-[19px] font-semibold tracking-tight">No dashboard password yet</h1>
+        <h1 class="text-[19px] font-semibold tracking-tight">{{ t('No dashboard password yet') }}</h1>
         <p class="hint mt-2 leading-relaxed">
           The worker answers every dashboard request with
           <span class="st">503</span> until <span class="st">DASHBOARD_PASSWORD</span> is set.
@@ -76,7 +77,7 @@ async function recheck() {
           busy-key="auth.recheck"
           @click="recheck"
         >
-          Check again
+          {{ t('Check again') }}
         </AppButton>
 
         <p class="hint mt-3">
@@ -86,13 +87,13 @@ async function recheck() {
       </template>
 
       <template v-else>
-        <h1 class="text-[19px] font-semibold tracking-tight">Sign in</h1>
+        <h1 class="text-[19px] font-semibold tracking-tight">{{ t('Sign in') }}</h1>
         <p class="hint mt-1.5">
-          {{ state.signingOut ? 'Signed out. Enter the password to get back in.' : 'Dashboard password for this resolver.' }}
+          {{ state.signingOut ? t('Signed out. Enter the password to get back in.') : t('Dashboard password for this resolver.') }}
         </p>
 
         <form class="mt-5" @submit.prevent="submit">
-          <label class="label" for="pw">Dashboard password</label>
+          <label class="label" for="pw">{{ t('Dashboard password') }}</label>
           <input
             id="pw"
             ref="pw"
@@ -108,7 +109,7 @@ async function recheck() {
           <p v-if="error" id="pw-error" class="text-[13px] text-block mt-2" role="alert">{{ error }}</p>
 
           <AppButton variant="solid" block type="submit" class="mt-4" busy-key="auth.login">
-            Sign in
+            {{ t('Sign in') }}
           </AppButton>
         </form>
 
