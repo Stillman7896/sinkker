@@ -7,6 +7,7 @@ import ConfirmButton from '../components/ConfirmButton.vue';
 import RowMenu from '../components/RowMenu.vue';
 import StatusPill from '../components/StatusPill.vue';
 import { qtypeLabel } from '../qtype.js';
+import { t } from '../i18n.js';
 
 const STATUSES = ['', 'allow', 'deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'none'];
 const LIMITS = [25, 50, 100, 250];
@@ -42,21 +43,21 @@ watch(search, (v) => {
   debounce = setTimeout(async () => {
     state.logs.search = v;
     state.logs.offset = 0;
-    await runOp('logs.search', { verb: 'Search logs', ok: `Showing ${total.value} matches`, fn: loadLogs }).catch(() => {});
+    await runOp('logs.search', { verb: t('Search logs'), ok: t('Showing {n} matches').replace('{n}', total.value), fn: loadLogs }).catch(() => {});
   }, 400);
 });
 
 watch(status, async (v) => {
   state.logs.status = v;
   state.logs.offset = 0;
-  await runOp('logs.filter', { verb: 'Apply status filter', ok: `Filtered to ${total.value} rows`, fn: loadLogs }).catch(() => {});
+  await runOp('logs.filter', { verb: t('Apply status filter'), ok: t('Filtered to {n} rows').replace('{n}', total.value), fn: loadLogs }).catch(() => {});
 });
 
 watch(client, async (v) => {
   state.logs.client = v;
   state.logs.offset = 0;
-  const label = v === 'untagged' ? 'untagged clients' : `client “${v}”`;
-  await runOp('logs.client', { verb: 'Apply client filter', ok: `Filtered to ${label}`, fn: loadLogs }).catch(() => {});
+  const label = v === 'untagged' ? t('untagged clients') : t('client “{c}”').replace('{c}', v);
+  await runOp('logs.client', { verb: t('Apply client filter'), ok: t('Filtered to {n} rows').replace('{n}', label), fn: loadLogs }).catch(() => {});
 });
 
 watch(limit, async (v) => {
@@ -69,13 +70,13 @@ onMounted(() => loadLogs().catch(() => {}));
 onBeforeUnmount(() => clearTimeout(debounce));
 
 async function refresh() {
-  await runOp('logs.refresh', { verb: 'Reload logs', ok: `${total.value} rows loaded`, fn: loadLogs }).catch(() => {});
+  await runOp('logs.refresh', { verb: t('Reload logs'), ok: t('{n} rows loaded').replace('{n}', total.value), fn: loadLogs }).catch(() => {});
 }
 
 async function deleteFiltered() {
   await runOp('logs.deleteFiltered', {
-    verb: 'Delete filtered logs',
-    ok: `${total.value} rows deleted`,
+    verb: t('Delete filtered logs'),
+    ok: t('{n} rows deleted').replace('{n}', total.value),
     fn: async () => {
       await api.deleteLogs({ ...currentQuery(), clear: undefined });
       state.logs.offset = 0;
@@ -86,8 +87,8 @@ async function deleteFiltered() {
 
 async function clearAll() {
   await runOp('logs.clear', {
-    verb: 'Clear all logs',
-    ok: 'Log cleared',
+    verb: t('Clear all logs'),
+    ok: t('Log cleared'),
     fn: async () => {
       await api.deleteLogs({ clear: 1 });
       state.logs.offset = 0;
@@ -98,8 +99,8 @@ async function clearAll() {
 
 async function removeRow(row) {
   await runOp(`logs.del:${row.id}`, {
-    verb: 'Delete row',
-    ok: `${row.domain} entry deleted`,
+    verb: t('Delete row'),
+    ok: t('{d} entry deleted').replace('{d}', row.domain),
     fn: async () => {
       await api.deleteLog(row.id);
       await loadLogs();
@@ -110,8 +111,8 @@ async function removeRow(row) {
 /** Write a custom rule for the row's domain, so the next query is decided early. */
 async function setRule(row, kind) {
   await runOp(`logs.${kind === 'deny' ? 'block' : 'allow'}:${row.domain}`, {
-    verb: kind === 'deny' ? 'Block domain' : 'Allow domain',
-    ok: `${row.domain} ${kind === 'deny' ? 'now blocked' : 'now allowed'}`,
+    verb: kind === 'deny' ? t('Block domain') : t('Allow domain'),
+    ok: `${row.domain} ${kind === 'deny' ? t('now blocked') : t('now allowed')}`,
     undo: async () => {
       await api.deleteRule(row.domain);
       await loadRules();
@@ -133,10 +134,10 @@ async function page(dir) {
 function timeOf(ts) {
   const d = new Date(ts);
   const diff = Date.now() - ts;
-  const rel = diff < 60_000 ? 'just now'
-    : diff < 3_600_000 ? `${Math.floor(diff / 60_000)} min ago`
-      : diff < 86_400_000 ? `${Math.floor(diff / 3_600_000)} h ago`
-        : `${Math.floor(diff / 86_400_000)} d ago`;
+  const rel = diff < 60_000 ? t('just now')
+    : diff < 3_600_000 ? t('{n} min ago').replace('{n}', Math.floor(diff / 60_000))
+      : diff < 86_400_000 ? t('{n} h ago').replace('{n}', Math.floor(diff / 3_600_000))
+        : t('{n} d ago').replace('{n}', Math.floor(diff / 86_400_000));
   return {
     rel,
     full: d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' }),
@@ -148,21 +149,21 @@ function timeOf(ts) {
   <div class="space-y-5">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 id="log-heading" class="text-[21px] font-semibold tracking-tight">Logs</h1>
+        <h1 id="log-heading" class="text-[21px] font-semibold tracking-tight">{{ t('Logs') }}</h1>
         <p class="hint mt-1">
-          {{ total.toLocaleString() }} {{ total === 1 ? 'entry' : 'entries' }}
-          <template v-if="activeFilter"> matching this filter</template>
+          {{ total.toLocaleString() }} {{ total === 1 ? t('entry') : t('entries') }}
+          <template v-if="activeFilter"> {{ t('matching this filter') }}</template>
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <AppButton busy-key="logs.refresh" :disabled="noD1" @click="refresh">Reload</AppButton>
+        <AppButton busy-key="logs.refresh" :disabled="noD1" @click="refresh">{{ t('Reload') }}</AppButton>
         <AppButton v-if="!noD1 && activeFilter" busy-key="logs.deleteFiltered" @click="deleteFiltered">
-          Delete filtered
+          {{ t('Delete filtered') }}
         </AppButton>
         <ConfirmButton
           v-if="!noD1 && rows.length"
-          label="Clear all"
-          armed-label="Really clear the log?"
+          :label="t('Clear all')"
+          :armed-label="t('Really clear the log?')"
           busy-key="logs.clear"
           @confirm="clearAll"
         />
@@ -172,28 +173,28 @@ function timeOf(ts) {
     <!-- Filters -->
     <div class="panel flex flex-wrap items-center gap-2.5 p-3">
       <label class="flex-1 min-w-[180px]">
-        <span class="sr-only">Search domain</span>
+        <span class="sr-only">{{ t('Search domain') }}</span>
         <input
           v-model="search"
           @input="search = $event.target.value"
-          type="search" class="field w-full st" placeholder="Search domain…" spellcheck="false" />
+          type="search" class="field w-full st" :placeholder="t('Search domain…')" spellcheck="false" />
       </label>
       <label class="flex items-center gap-2">
-        <span class="text-[12.5px] text-muted hidden sm:inline">Status</span>
+        <span class="text-[12.5px] text-muted hidden sm:inline">{{ t('Status') }}</span>
         <select v-model="status" class="field st">
-          <option v-for="s in STATUSES" :key="s" :value="s">{{ s || 'any' }}</option>
+          <option v-for="s in STATUSES" :key="s" :value="s">{{ s || t('any') }}</option>
         </select>
       </label>
       <label class="flex items-center gap-2">
-        <span class="text-[12.5px] text-muted hidden sm:inline">Client</span>
+        <span class="text-[12.5px] text-muted hidden sm:inline">{{ t('Client') }}</span>
         <select v-model="client" class="field st" aria-label="Filter by client">
-          <option value="">any client</option>
-          <option value="untagged">untagged</option>
+          <option value="">{{ t('any client') }}</option>
+          <option value="untagged">{{ t('untagged') }}</option>
           <option v-for="c in clientOptions" :key="c.client" :value="c.client">{{ c.client }} ({{ c.n }})</option>
         </select>
       </label>
       <label class="flex items-center gap-2">
-        <span class="text-[12.5px] text-muted hidden sm:inline">Rows</span>
+        <span class="text-[12.5px] text-muted hidden sm:inline">{{ t('Rows') }}</span>
         <select v-model="limit" class="field st">
           <option v-for="l in LIMITS" :key="l" :value="l">{{ l }}</option>
         </select>
@@ -204,7 +205,7 @@ function timeOf(ts) {
         class="text-[13px] text-muted hover:text-ink underline underline-offset-2 ml-auto"
         @click="search = '', status = '', client = ''"
       >
-        Reset filter
+        {{ t('Reset filter') }}
       </button>
     </div>
 
@@ -215,21 +216,21 @@ function timeOf(ts) {
         No <span class="st">LOGS</span> D1 database is bound to this worker, so queries are answered but not recorded.
         Bind one and redeploy; the list then fills from the next query onwards.
       </p>
-      <AppButton variant="solid" class="mt-4" @click="setRoute('settings')">Open settings</AppButton>
+      <AppButton variant="solid" class="mt-4" @click="setRoute('settings')">{{ t('Open settings') }}</AppButton>
     </div>
 
     <!-- Rows: a real table, labels stay visible, narrow screens scroll it -->
     <section v-else class="panel overflow-hidden">
       <div v-if="rows.length" class="overflow-x-auto">
         <table class="w-full min-w-[620px] border-collapse text-left">
-          <caption class="sr-only">Recent DNS queries</caption>
+          <caption class="sr-only">{{ t('Recent DNS queries') }}</caption>
           <thead class="text-[12.5px] text-muted border-b border-line">
             <tr>
-              <th scope="col" class="px-4 sm:px-5 py-2 font-medium whitespace-nowrap">When</th>
-              <th scope="col" class="px-3 py-2 font-medium">Domain</th>
-              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">Outcome</th>
-              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">Client</th>
-              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">Type</th>
+              <th scope="col" class="px-4 sm:px-5 py-2 font-medium whitespace-nowrap">{{ t('When') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium">{{ t('Domain') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">{{ t('Outcome') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">{{ t('Client') }}</th>
+              <th scope="col" class="px-3 py-2 font-medium whitespace-nowrap">{{ t('Type') }}</th>
               <th scope="col" class="px-4 sm:px-5 py-2 font-medium text-right"><span class="sr-only">Action</span></th>
             </tr>
           </thead>
@@ -249,7 +250,7 @@ function timeOf(ts) {
                   v-if="r.client"
                   type="button"
                   class="st text-[12.5px] rounded border border-line px-1.5 py-0.5 text-muted hover:text-ink hover:bg-raised transition-colors"
-                  :title="`Show only queries from ${r.client}`"
+                  :title="t('Show only queries from {c}').replace('{c}', r.client)"
                   @click="client = r.client"
                 >
                   {{ r.client }}
@@ -259,7 +260,7 @@ function timeOf(ts) {
               <td class="px-3 py-3 whitespace-nowrap st text-[12.5px] text-muted">{{ qtypeLabel(r.qtype) }}</td>
               <td class="px-4 sm:px-5 py-3 text-right whitespace-nowrap">
                 <RowMenu
-                  :label="`Quick actions for ${r.domain}`"
+                  :label="t('Quick actions for {d}').replace('{d}', r.domain)"
                   :keys="[`logs.allow:${r.domain}`, `logs.block:${r.domain}`, `logs.del:${r.id}`]"
                   @allow="setRule(r, 'allow')"
                   @block="setRule(r, 'deny')"
@@ -272,20 +273,20 @@ function timeOf(ts) {
       </div>
 
       <div v-if="!rows.length" class="px-5 py-10 text-center">
-        <p class="text-[14px] font-medium">{{ activeFilter ? 'Nothing matches that filter.' : 'The log is empty.' }}</p>
+        <p class="text-[14px] font-medium">{{ activeFilter ? t('Nothing matches that filter.') : t('The log is empty.') }}</p>
         <p class="hint mt-1.5">
-          {{ activeFilter ? 'Clear the filter to see everything recorded.' : 'Queries will appear here as clients use this resolver.' }}
+          {{ activeFilter ? t('Clear the filter to see everything recorded.') : t('Queries will appear here as clients use this resolver.') }}
         </p>
       </div>
 
       <!-- Pager -->
       <div v-if="total > rows.length" class="flex items-center gap-3 px-4 sm:px-5 py-3 border-t border-line">
-        <AppButton small :disabled="state.logs.offset === 0" @click="page(-1)">Previous</AppButton>
+        <AppButton small :disabled="state.logs.offset === 0" @click="page(-1)">{{ t('Previous') }}</AppButton>
         <span class="st text-[12.5px] text-muted mx-auto">
           {{ logPages.page }} / {{ logPages.pages }}
         </span>
         <AppButton small :disabled="state.logs.offset + state.logs.limit >= total" @click="page(1)">
-          Next page
+          {{ t('Next page') }}
         </AppButton>
       </div>
     </section>
