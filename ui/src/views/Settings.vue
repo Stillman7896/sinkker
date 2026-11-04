@@ -6,6 +6,7 @@ import AppButton from '../components/AppButton.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import ToggleSwitch from '../components/ToggleSwitch.vue';
 import { normalizeDomain, normalizeRouteValue, isHttpsUrl, isRelayTemplate } from '../validate.js';
+import { t } from '../i18n.js';
 
 const TOGGLES = [
   {
@@ -77,8 +78,8 @@ async function saveBlockedResponse() {
   state.settings.blockedResponse = value; // optimistic; reverted if the worker refuses
   try {
     const r = await runOp('set.blockedResponse', {
-      verb: 'Save settings',
-      ok: `Blocked queries now answer ${value}`,
+      verb: t('Save settings'),
+      ok: t('Blocked queries now answer {v}').replace('{v}', value),
       fn: () => api.saveSettings({ blockedResponse: value }),
     });
     blockedResponse.value = r.settings.blockedResponse || value;
@@ -96,8 +97,8 @@ async function toggle(t, value) {
   state.settings[t.key] = value; // optimistic; reverted if the worker refuses
   try {
     await runOp(`set.${t.key}`, {
-      verb: 'Save settings',
-      ok: `${t.label} ${value ? 'on' : 'off'}`,
+      verb: t('Save settings'),
+      ok: `${t(t.label)} ${value ? t('on') : t('off')}`,
       fn: () => api.saveSettings({ [t.key]: value }),
     });
   } catch {
@@ -108,13 +109,13 @@ async function toggle(t, value) {
 async function saveRetention() {
   retentionError.value = '';
   if (!retentionValid.value) {
-    retentionError.value = 'Enter a whole number of days between 0 and 3650.';
+    retentionError.value = t('Enter a whole number of days between 0 and 3650.');
     return;
   }
   try {
     await runOp('set.retention', {
       verb: 'Save settings',
-      ok: `Log kept ${Number(retention.value) === 0 ? 'forever' : `for ${retention.value} days`}`,
+      ok: Number(retention.value) === 0 ? t('Log kept forever') : t('Log kept for {n} days').replace('{n}', retention.value),
       fn: async () => {
         const r = await api.saveSettings({ logRetentionDays: Number(retention.value) });
         retention.value = String(r.settings.logRetentionDays);
@@ -153,18 +154,18 @@ const chosen = computed(() => presets.value.find((p) => p.id === provider.value)
 const effective = computed(() => state.upstream);
 const sourceNote = computed(() => {
   const source = effective.value?.source;
-  if (source === 'deploy') return 'Currently pinned by the UPSTREAM_URL deployment variable. Saving a provider here takes over.';
-  if (source === 'default') return 'No provider saved yet — this is the built-in default.';
-  return 'Saved in this dashboard.';
+  if (source === 'deploy') return t('Currently pinned by the UPSTREAM_URL deployment variable. Saving a provider here takes over.');
+  if (source === 'default') return t('No provider saved yet — this is the built-in default.');
+  return t('Saved in this dashboard.');
 });
 
 const isCustom = computed(() => provider.value === 'custom');
 const isOdoh = computed(() => chosen.value?.kind === 'odoh');
 const urlProblem = computed(() => (isCustom.value && customUrl.value.trim() && !isHttpsUrl(customUrl.value)
-  ? 'Needs an https:// URL, like https://doh.example.com/dns-query.'
+  ? t('Needs an https:// URL, like https://doh.example.com/dns-query.')
   : ''));
 const relayProblem = computed(() => (isOdoh.value && relay.value.trim() && !isRelayTemplate(relay.value)
-  ? 'Needs an https:// template containing {?targethost,targetpath}.'
+  ? t('Needs an https:// template containing {?targethost,targetpath}.')
   : ''));
 
 const saved = computed(() => ({
@@ -201,17 +202,17 @@ const fallbackUrl = ref(state.settings?.upstreamFallbackUrl || '');
 const fallbackOn = computed(() => state.settings?.upstreamFailover !== false);
 const fallbackInfo = computed(() => state.fallback);
 const fallbackProblem = computed(() => (fallbackUrl.value.trim() && !isHttpsUrl(fallbackUrl.value.trim())
-  ? 'Needs an https:// URL, like https://doh.example.com/dns-query.'
+  ? t('Needs an https:// URL, like https://doh.example.com/dns-query.')
   : ''));
 const fallbackDirty = computed(() => fallbackUrl.value.trim() !== (state.settings?.upstreamFallbackUrl || ''));
 
 const fallbackNote = computed(() => {
-  if (!fallbackOn.value) return 'Off — if the primary resolver fails, the query fails too.';
+  if (!fallbackOn.value) return t('Off — if the primary resolver fails, the query fails too.');
   const info = fallbackInfo.value;
-  if (!info) return 'On, but no fallback server is available.';
-  if (info.source === 'settings') return `In use: ${info.url} (custom fallback URL).`;
-  if (info.source === 'deploy') return `In use: ${info.url} (UPSTREAM_FALLBACK_URL variable).`;
-  return `In use: ${info.url} — built-in alternate (${info.label}).`;
+  if (!info) return t('On, but no fallback server is available.');
+  if (info.source === 'settings') return t('In use: {u} (custom fallback URL).').replace('{u}', info.url);
+  if (info.source === 'deploy') return t('In use: {u} (UPSTREAM_FALLBACK_URL variable).').replace('{u}', info.url);
+  return t('In use: {u} — built-in alternate ({l}).').replace('{u}', info.url).replace('{l}', info.label);
 });
 
 async function toggleFallback(value) {
@@ -220,7 +221,7 @@ async function toggleFallback(value) {
   try {
     await runOp('set.upstreamFailover', {
       verb: 'Save settings',
-      ok: `Fallback server ${value ? 'on' : 'off'}`,
+      ok: t('Fallback server {v}').replace('{v}', value ? t('on') : t('off')),
       fn: async () => {
         const r = await api.saveSettings({ upstreamFailover: value });
         applyConfig(r);
@@ -236,8 +237,8 @@ async function saveFallbackUrl() {
   if (fallbackProblem.value || !fallbackDirty.value) return;
   try {
     await runOp('settings.fallback', {
-      verb: 'Save fallback',
-      ok: (r) => (r.fallback ? `Fallback: ${r.fallback.url}` : 'Fallback off'),
+      verb: t('Save fallback'),
+      ok: (r) => (r.fallback ? t('Fallback: {u}').replace('{u}', r.fallback.url) : t('Fallback off')),
       fn: async () => {
         const r = await api.saveSettings({ upstreamFallbackUrl: fallbackUrl.value.trim() });
         applyConfig(r);
@@ -259,8 +260,8 @@ async function saveProvider() {
 
   try {
     await runOp('settings.upstream', {
-      verb: 'Save provider',
-      ok: (r) => `Upstream: ${r.upstream.label}`,
+      verb: t('Save provider'),
+      ok: (r) => `${t('Upstream:')}${r.upstream.label}`,
       undo: async () => applyConfig(await api.saveSettings({
         upstreamPreset: before.preset,
         upstreamUrl: before.url,
@@ -293,8 +294,8 @@ async function testConnection() {
     : { url: effective.value?.url, kind: effective.value?.kind, relay: effective.value?.relay };
 
   await runOp('settings.probe', {
-    verb: 'Test upstream',
-    ok: (r) => `${r.kind === 'odoh' ? 'Relay and resolver' : 'Resolver'} answered in ${r.ms} ms`,
+    verb: t('Test upstream'),
+    ok: (r) => `${r.kind === 'odoh' ? t('Relay and resolver') : t('Resolver')} ${t('answered in {n} ms').replace('{n}', r.ms)}`,
     fn: async () => {
       const r = await api.testUpstream(candidate);
       probe.value = r;
@@ -321,11 +322,11 @@ const routeTtlOk = computed(() => {
 const routeReady = computed(() => routeDomainOk.value && Boolean(routeAnswer.value) && routeTtlOk.value);
 const routeHint = computed(() => {
   const raw = routeValue.value.trim();
-  if (raw && !routeAnswer.value) return 'Needs an IPv4 or IPv6 address, or a hostname to point at.';
-  if (!raw) return 'A route answers this name and every subdomain — before any other filter, including allow and deny rules.';
+  if (raw && !routeAnswer.value) return t('Needs an IPv4 or IPv6 address, or a hostname to point at.');
+  if (!raw) return t('A route answers this name and every subdomain — before any other filter, including allow and deny rules.');
   const answer = routeAnswer.value;
-  if (answer.type === 'cname') return `Saves as a CNAME to ${answer.value}.`;
-  return `Saves as an ${answer.type.toUpperCase()} record for ${answer.value}.`;
+  if (answer.type === 'cname') return t('Saves as a CNAME to {v}.').replace('{v}', answer.value);
+  return t('Saves as an {t} record for {v}.').replace('{t}', answer.type.toUpperCase()).replace('{v}', answer.value);
 });
 const answerLabel = (r) => `${r.type.toUpperCase()} · ${r.value}`;
 
@@ -344,7 +345,7 @@ async function addRoute() {
   };
   try {
     await runOp('routes.add', {
-      verb: 'Add route',
+      verb: t('Add route'),
       ok: (r) => `${r.route.domain} → ${r.route.value}`,
       undo: async (r) => {
         await api.deleteRoute(r.route.domain);
@@ -364,8 +365,8 @@ async function addRoute() {
 
 async function removeRoute(route) {
   await runOp(`routes.del:${route.domain}`, {
-    verb: 'Remove route',
-    ok: `${route.domain} removed`,
+    verb: t('Remove route'),
+    ok: `${route.domain} ${t('removed')}`,
     undo: async () => {
       await api.addRoute({ domain: route.domain, value: route.value, ttl: route.ttl });
       await loadRoutes();
@@ -382,33 +383,33 @@ async function removeRoute(route) {
 <template>
   <div class="space-y-6">
     <div>
-      <h1 class="text-[21px] font-semibold tracking-tight">Settings</h1>
-      <p class="hint mt-1">Each change is written to KV as you make it — there is nothing else to save.</p>
+      <h1 class="text-[21px] font-semibold tracking-tight">{{ t('Settings') }}</h1>
+      <p class="hint mt-1">{{ t('Each change is written to KV as you make it — there is nothing else to save.') }}</p>
     </div>
 
     <div v-if="!ready" class="panel p-6 text-center text-muted text-[13px]">
       <span class="block w-5 h-5 mx-auto rounded-full border-2 border-beacon border-t-transparent spin" aria-hidden="true" />
-      <p class="mt-3">Reading current settings…</p>
+      <p class="mt-3">{{ t('Reading current settings…') }}</p>
     </div>
 
     <template v-else>
       <!-- Upstream resolver -->
       <section class="panel px-5 py-4">
         <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 class="text-[15px] font-medium">Upstream resolver</h2>
-          <span class="text-[12.5px] text-muted">where allowed queries are forwarded</span>
+          <h2 class="text-[15px] font-medium">{{ t('Upstream resolver') }}</h2>
+          <span class="text-[12.5px] text-muted">{{ t('where allowed queries are forwarded') }}</span>
         </div>
 
         <div class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <label class="flex flex-col gap-1.5 min-w-0">
-            <span class="label">Provider</span>
+            <span class="label">{{ t('Provider') }}</span>
             <select
               v-model="provider"
               class="field w-full"
               aria-describedby="provider-note"
               @change="onPickProvider"
             >
-              <option value="">Default — {{ effective?.label }}</option>
+              <option value="">{{ t('Default') }} — {{ effective?.label }}</option>
               <optgroup v-for="g in groups" :key="g.label" :label="g.label">
                 <option v-for="p in g.items" :key="p.id" :value="p.id">{{ p.label }}</option>
               </optgroup>
@@ -416,16 +417,16 @@ async function removeRoute(route) {
           </label>
 
           <AppButton busy-key="settings.probe" :disabled="!canProbe" @click="testConnection">
-            Test connection
+            {{ t('Test connection') }}
           </AppButton>
         </div>
 
         <p id="provider-note" class="hint mt-2.5" aria-live="polite">
-          {{ chosen?.note || effective?.note || 'Any RFC 8484 endpoint works.' }}
+          {{ chosen?.note || effective?.note || t('Any RFC 8484 endpoint works.') }}
         </p>
 
         <div v-if="isCustom" class="mt-3 flex flex-col gap-1.5">
-          <label class="label" for="custom-url">DoH URL</label>
+          <label class="label" for="custom-url">{{ t('DoH URL') }}</label>
           <div class="flex flex-wrap gap-2.5">
             <input
               id="custom-url"
@@ -439,16 +440,16 @@ async function removeRoute(route) {
               :aria-invalid="Boolean(urlProblem)"
             />
             <AppButton variant="solid" busy-key="settings.upstream" :disabled="!canSave" @click="saveProvider">
-              Save provider
+              {{ t('Save provider') }}
             </AppButton>
           </div>
           <p class="hint" :class="urlProblem && 'text-block'" aria-live="polite">
-            {{ urlProblem || 'The worker must be able to reach this URL over https.' }}
+            {{ urlProblem || t('The worker must be able to reach this URL over https.') }}
           </p>
         </div>
 
         <div v-if="isOdoh" class="mt-3 flex flex-col gap-1.5">
-          <label class="label" for="odoh-relay">Relay template</label>
+          <label class="label" for="odoh-relay">{{ t('Relay template') }}</label>
           <div class="flex flex-wrap gap-2.5">
             <input
               id="odoh-relay"
@@ -462,26 +463,26 @@ async function removeRoute(route) {
               :aria-invalid="Boolean(relayProblem)"
             />
             <AppButton variant="solid" busy-key="settings.upstream" :disabled="!canSave" @click="saveProvider">
-              Save provider
+              {{ t('Save provider') }}
             </AppButton>
           </div>
           <p class="hint" :class="relayProblem && 'text-block'" aria-live="polite">
-            {{ relayProblem || 'Queries are encrypted for the resolver and posted through this relay, so neither end sees both the name and your network.' }}
+            {{ relayProblem || t('Queries are encrypted for the resolver and posted through this relay, so neither end sees both the name and your network.') }}
           </p>
         </div>
 
         <div class="mt-4 rounded-md border border-line bg-raised px-3.5 py-3">
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span class="text-[12.5px] text-muted">In use</span>
+            <span class="text-[12.5px] text-muted">{{ t('In use') }}</span>
             <span class="st text-[12.5px] break-all">{{ effective?.url }}</span>
             <span
               v-if="effective?.kind === 'odoh'"
               class="st text-[11.5px] rounded border border-beacon/40 text-beacon px-1.5 py-0.5"
             >ODoH</span>
-            <span v-if="dirty" class="text-[12px] text-beacon">· unsaved change above</span>
+            <span v-if="dirty" class="text-[12px] text-beacon">{{ t('· unsaved change above') }}</span>
           </div>
           <p v-if="effective?.kind === 'odoh' && effective?.relay" class="st text-[12px] text-muted mt-1.5 break-all">
-            relay {{ effective.relay }}
+            {{ t('relay') }} {{ effective.relay }}
           </p>
           <p class="hint mt-1.5">{{ sourceNote }}</p>
         </div>
@@ -491,15 +492,15 @@ async function removeRoute(route) {
           <ToggleSwitch
             class="!py-0"
             :model-value="fallbackOn"
-            label="Fallback DNS server"
-            :effect="'Retry a second server when this one is unreachable, errors, or answers SERVFAIL/REFUSED.'"
+            :label="t('Fallback DNS server')"
+            :effect="t('Retry a second server when this one is unreachable, errors, or answers SERVFAIL/REFUSED.')"
             busy-key="set.upstreamFailover"
             @update:model-value="toggleFallback"
           />
           <p class="hint mt-2.5" aria-live="polite">{{ fallbackNote }}</p>
 
           <div v-if="fallbackOn" class="mt-3 flex flex-col gap-1.5">
-            <label class="label" for="fallback-url">Custom fallback URL (optional)</label>
+            <label class="label" for="fallback-url">{{ t('Custom fallback URL (optional)') }}</label>
             <div class="flex flex-wrap gap-2.5">
               <input
                 id="fallback-url"
@@ -518,11 +519,11 @@ async function removeRoute(route) {
                 :disabled="Boolean(fallbackProblem) || !fallbackDirty"
                 @click="saveFallbackUrl"
               >
-                Save fallback
+                {{ t('Save fallback') }}
               </AppButton>
             </div>
             <p class="hint" :class="fallbackProblem && 'text-block'" aria-live="polite">
-              {{ fallbackProblem || 'Leave empty to use the built-in alternate provider. The fallback answers in place of the primary only after the primary fails; NXDOMAIN from the primary is a real answer and is never retried.' }}
+              {{ fallbackProblem || t('Leave empty to use the built-in alternate provider. The fallback answers in place of the primary only after the primary fails; NXDOMAIN from the primary is a real answer and is never retried.') }}
             </p>
           </div>
         </div>
@@ -535,14 +536,14 @@ async function removeRoute(route) {
           aria-live="polite"
         >
           <p class="text-[13px] font-medium" :class="probe.ok ? 'text-pass' : 'text-block'">
-            {{ probe.ok ? 'Answered' : 'No answer' }} · {{ probe.ms }} ms
+            {{ probe.ok ? t('Answered') : t('No answer') }} · {{ probe.ms }} ms
           </p>
           <p v-if="probe.ok" class="st text-[12.5px] text-muted mt-1 break-all">
-            {{ probe.answers }} {{ probe.answers === 1 ? 'record' : 'records' }}
+            {{ probe.answers }} {{ t('records') }}
             <template v-if="probe.sample"> · {{ probe.sample }}</template>
           </p>
           <p v-else class="hint mt-1">{{ probe.error }}</p>
-          <p class="st text-[11.5px] text-muted mt-1.5 break-all">{{ probe.kind === 'odoh' ? `via ${probe.url}` : probe.url }}</p>
+          <p class="st text-[11.5px] text-muted mt-1.5 break-all">{{ probe.kind === 'odoh' ? `${t('via')} ${probe.url}` : probe.url }}</p>
         </div>
       </section>
 
@@ -550,19 +551,18 @@ async function removeRoute(route) {
       <section class="panel overflow-hidden">
         <div class="px-5 py-4 border-b border-line">
           <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 class="text-[15px] font-medium">Domain response routing</h2>
-            <span class="text-[12.5px] text-muted">{{ state.routes.length }} {{ state.routes.length === 1 ? 'route' : 'routes' }}</span>
+            <h2 class="text-[15px] font-medium">{{ t('Domain response routing') }}</h2>
+            <span class="text-[12.5px] text-muted">{{ state.routes.length }} {{ state.routes.length === 1 ? t('route') : t('routes') }}</span>
           </div>
           <p class="hint mt-1">
-            Answer a name — and every subdomain — with a fixed record instead of asking upstream.
-            Private addresses and local names are welcome here; the route is checked before every other filter.
+            {{ t('Answer a name — and every subdomain — with a fixed record instead of asking upstream. Private addresses and local names are welcome here; the route is checked before every other filter.') }}
           </p>
         </div>
 
         <div class="px-5 py-4">
           <form class="grid gap-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_auto_auto] sm:items-end" @submit.prevent="addRoute">
             <label class="flex flex-col gap-1.5 min-w-0">
-              <span class="label">Domain</span>
+              <span class="label">{{ t('Domain') }}</span>
               <input
                 v-model="routeDomain"
                 @input="routeDomain = $event.target.value"
@@ -575,13 +575,13 @@ async function removeRoute(route) {
               />
             </label>
             <label class="flex flex-col gap-1.5 min-w-0">
-              <span class="label">Answer</span>
+              <span class="label">{{ t('Answer') }}</span>
               <input
                 v-model="routeValue"
                 @input="routeValue = $event.target.value"
                 type="text"
                 class="field st"
-                placeholder="192.168.1.20 or hostname"
+                :placeholder="t('192.168.1.20 or hostname')"
                 autocapitalize="none"
                 spellcheck="false"
                 :aria-invalid="routeValue.trim() && !routeAnswer"
@@ -596,27 +596,27 @@ async function removeRoute(route) {
                 max="86400"
                 step="1"
                 class="field w-24 st"
-                aria-label="Route TTL in seconds"
+                :aria-label="t('Route TTL in seconds')"
                 :aria-invalid="!routeTtlOk"
               />
             </label>
             <AppButton variant="solid" type="submit" busy-key="routes.add" :disabled="!routeReady">
-              Add route
+              {{ t('Add route') }}
             </AppButton>
           </form>
 
           <p class="hint mt-2.5" :class="(routeValue.trim() && !routeAnswer) || !routeTtlOk ? 'text-block' : ''" aria-live="polite">
-            {{ !routeTtlOk ? 'TTL must be a whole number of seconds between 0 and 86400.' : routeHint }}
+            {{ !routeTtlOk ? t('TTL must be a whole number of seconds between 0 and 86400.') : routeHint }}
           </p>
         </div>
 
         <div v-if="state.routes.length" class="overflow-x-auto border-t border-line">
           <table class="w-full min-w-[480px] border-collapse text-left">
-            <caption class="sr-only">Domain response routes</caption>
+            <caption class="sr-only">{{ t('Domain response routes') }}</caption>
             <thead class="text-[12.5px] text-muted border-b border-line">
               <tr>
-                <th scope="col" class="px-5 py-2 font-medium">Domain</th>
-                <th scope="col" class="px-3 py-2 font-medium">Answer</th>
+                <th scope="col" class="px-5 py-2 font-medium">{{ t('Domain') }}</th>
+                <th scope="col" class="px-3 py-2 font-medium">{{ t('Answer') }}</th>
                 <th scope="col" class="px-3 py-2 font-medium text-right whitespace-nowrap">TTL</th>
                 <th scope="col" class="px-5 py-2 font-medium text-right"><span class="sr-only">Action</span></th>
               </tr>
@@ -635,8 +635,8 @@ async function removeRoute(route) {
                 <td class="px-5 py-3 text-right whitespace-nowrap">
                   <ConfirmButton
                     small
-                    label="Remove"
-                    armed-label="Confirm?"
+                    :label="t('Remove')"
+                    :armed-label="t('Confirm?')"
                     :busy-key="`routes.del:${r.domain}`"
                     @confirm="removeRoute(r)"
                   />
@@ -653,15 +653,15 @@ async function removeRoute(route) {
 
       <!-- Filters -->
       <section class="panel px-5 py-4">
-        <h2 class="text-[15px] font-medium">Filters</h2>
+        <h2 class="text-[15px] font-medium">{{ t('Filters') }}</h2>
         <div class="mt-1 divide-y divide-line/70" role="group" aria-label="Filter settings">
           <template v-for="t in TOGGLES" :key="t.key">
             <div class="flex items-start justify-between gap-4 py-3.5">
               <ToggleSwitch
                 class="flex-1 !py-0"
                 :model-value="state.settings[t.key]"
-                :label="t.label"
-                :effect="t.effect"
+                :label="t(t.label)"
+                :effect="t(t.effect)"
                 :busy-key="`set.${t.key}`"
                 @update:model-value="toggle(t, $event)"
               />
@@ -671,7 +671,7 @@ async function removeRoute(route) {
                 class="shrink-0 mt-1 text-[13px] text-muted hover:text-ink underline underline-offset-2"
                 @click="setRoute(t.route)"
               >
-                Open list
+                {{ t('Open list') }}
               </button>
             </div>
           </template>
@@ -680,18 +680,18 @@ async function removeRoute(route) {
 
       <!-- Blocked queries -->
       <section class="panel px-5 py-4">
-        <h2 class="text-[15px] font-medium">Blocked queries</h2>
-        <p class="hint mt-1">What this resolver sends back for a name that a filter stopped.</p>
+        <h2 class="text-[15px] font-medium">{{ t('Blocked queries') }}</h2>
+        <p class="hint mt-1">{{ t('What this resolver sends back for a name that a filter stopped.') }}</p>
 
         <div class="mt-4 flex flex-wrap items-end gap-3">
           <label class="flex flex-col gap-1.5 min-w-0">
-            <span class="label">Response</span>
+            <span class="label">{{ t('Response') }}</span>
             <select
               v-model="blockedResponse"
               class="field w-full sm:w-80"
               aria-describedby="blocked-response-hint"
             >
-              <option v-for="o in blockedResponseOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+              <option v-for="o in blockedResponseOptions" :key="o.value" :value="o.value">{{ t(o.label) }}</option>
             </select>
           </label>
           <AppButton
@@ -700,23 +700,23 @@ async function removeRoute(route) {
             :disabled="!blockedResponseDirty"
             @click="saveBlockedResponse"
           >
-            Save response
+            {{ t('Save response') }}
           </AppButton>
         </div>
 
         <p id="blocked-response-hint" class="hint mt-2.5" aria-live="polite">
-          {{ blockedResponseHint }} Routes are unaffected — they always answer with their own record.
+          {{ t(blockedResponseHint) }} {{ t('Routes are unaffected — they always answer with their own record.') }}
         </p>
       </section>
 
       <!-- Query log -->
       <section class="panel px-5 py-4">
-        <h2 class="text-[15px] font-medium">Query log</h2>
-        <p class="hint mt-1">Older rows are deleted by a scheduled job.</p>
+        <h2 class="text-[15px] font-medium">{{ t('Query log') }}</h2>
+        <p class="hint mt-1">{{ t('Older rows are deleted by a scheduled job.') }}</p>
 
         <div class="mt-4 flex flex-wrap items-end gap-3">
           <label class="flex flex-col gap-1.5">
-            <span class="label">Keep rows for</span>
+            <span class="label">{{ t('Keep rows for') }}</span>
             <span class="flex items-center gap-2">
               <input
                 v-model="retention"
@@ -730,16 +730,16 @@ async function removeRoute(route) {
                 @input="retentionError = ''"
                 @keyup.enter="saveRetention"
               />
-              <span class="text-[13px] text-muted">days</span>
+              <span class="text-[13px] text-muted">{{ t('days') }}</span>
             </span>
           </label>
 
           <AppButton variant="solid" busy-key="set.retention" :disabled="!retentionValid" @click="saveRetention">
-            Save retention
+            {{ t('Save retention') }}
           </AppButton>
 
           <span id="ret-hint" class="hint" :class="retentionError ? 'text-block' : ''">
-            {{ retentionError || (Number(retention) === 0 ? '0 keeps rows forever.' : `Drops on day ${Number(retention) + 1}.`) }}
+            {{ retentionError || (Number(retention) === 0 ? t('0 keeps rows forever.') : t('Drops on day {n}.').replace('{n}', Number(retention) + 1)) }}
           </span>
         </div>
       </section>
