@@ -69,8 +69,8 @@ async function add(form) {
   if (!value) return;
   try {
     await runOp(`lists.${form.key}.add`, {
-      verb: `Add ${form.addLabel}`,
-      ok: (r) => (r.added ? `${value} added` : `${value} was already on the list`),
+      verb: t('Add {x}').replace('{x}', form.addLabel),
+      ok: (r) => (r.added ? t('{d} added').replace('{d}', value) : t('{d} was already on the list').replace('{d}', value)),
       undo: async () => {
         await api.removeItem(form.id, value);
         await loadLists();
@@ -87,8 +87,8 @@ async function add(form) {
 
 async function remove(form, value) {
   await runOp(`lists.${form.key}.del:${value}`, {
-    verb: 'Remove from list',
-    ok: `${value} removed`,
+    verb: t('Remove from list'),
+    ok: `${value} ${t('removed')}`,
     undo: async () => {
       await api.addItem(form.id, value);
       await loadLists();
@@ -114,8 +114,8 @@ const overLimit = computed(() => blTotal.value > blLimit.value);
 const blProblem = computed(() => {
   const v = blDraft.value.trim();
   if (!v) return '';
-  if (!isHttpsUrl(v)) return 'Needs an https:// URL — the worker fetches the list over https.';
-  if (subs.value.some((s) => s.url === v)) return 'That blocklist is already subscribed.';
+  if (!isHttpsUrl(v)) return t('Needs an https:// URL — the worker fetches the list over https.');
+  if (subs.value.some((s) => s.url === v)) return t('That blocklist is already subscribed.');
   return '';
 });
 const blCanAdd = computed(() => isHttpsUrl(blDraft.value.trim()) && !blProblem.value && !atMax.value);
@@ -125,8 +125,8 @@ async function addBlocklist() {
   if (!blCanAdd.value) return;
   try {
     await runOp('lists.blocklist.add', {
-      verb: 'Add blocklist',
-      ok: (r) => `${r.subscriptions.length} subscription${r.subscriptions.length === 1 ? '' : 's'}`,
+      verb: t('Add blocklist'),
+      ok: (r) => `${r.subscriptions.length} ${r.subscriptions.length === 1 ? t('subscription') : t('subscriptions')}`,
       undo: async () => {
         await api.removeBlocklist(url);
         await loadBlocklists();
@@ -143,8 +143,8 @@ async function addBlocklist() {
 
 async function removeBlocklist(url) {
   await runOp(`lists.blocklist.del:${url}`, {
-    verb: 'Remove blocklist',
-    ok: 'Blocklist removed',
+    verb: t('Remove blocklist'),
+    ok: t('Blocklist removed'),
     undo: async () => {
       await api.addBlocklist(url);
       await loadBlocklists();
@@ -159,8 +159,8 @@ async function removeBlocklist(url) {
 
 async function reloadBlocklists() {
   await runOp('lists.blocklist.reload', {
-    verb: 'Reload blocklists',
-    ok: 'Blocklists reloaded',
+    verb: t('Reload blocklists'),
+    ok: t('Blocklists reloaded'),
     fn: async () => {
       await api.reloadBlocklists();
       await loadBlocklists();
@@ -173,12 +173,12 @@ async function reloadBlocklists() {
  *  works even when /api/* no longer answers. */
 async function resetWorker() {
   const pw = window.prompt(
-    'Wipes settings, routes and custom rules on the worker.\nDeployment variables and the query log stay.\n\nDashboard password:'
+    t('Wipes settings, routes and custom rules on the worker.') + '\n' + t('Deployment variables and the query log stay.') + '\n\n' + t('Dashboard password:')
   );
   if (pw === null) return;
   await runOp('lists.resetWorker', {
-    verb: 'Reset worker',
-    ok: 'Worker reset — settings and custom rules cleared',
+    verb: t('Reset worker'),
+    ok: t('Worker reset — settings and custom rules cleared'),
     fn: async () => {
       const r = await api.resetWorker(pw);
       await boot();
@@ -194,8 +194,8 @@ async function toggleRegex(value) {
   state.settings.regexBlock = value; // optimistic; reverted if the worker refuses
   try {
     await runOp('set.regexBlock', {
-      verb: 'Save settings',
-      ok: `Regex blocking ${value ? 'on' : 'off'}`,
+      verb: t('Save settings'),
+      ok: t('Regex blocking {v}').replace('{v}', value ? t('on') : t('off')),
       fn: () => api.saveSettings({ regexBlock: value }),
     });
   } catch {
@@ -207,16 +207,16 @@ async function toggleRegex(value) {
 <template>
   <div class="space-y-6">
     <div>
-      <h1 class="text-[21px] font-semibold tracking-tight">Filter lists</h1>
-      <p class="hint mt-1">Remote blocklist subscriptions and three plain lists that decide on their own.</p>
+      <h1 class="text-[21px] font-semibold tracking-tight">{{ t('Filter lists') }}</h1>
+      <p class="hint mt-1">{{ t('Remote blocklist subscriptions and three plain lists that decide on their own.') }}</p>
     </div>
 
     <!-- Blocklist subscriptions: the worker holds these in memory -->
     <section class="panel overflow-hidden">
       <div class="px-5 py-4 border-b border-line flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 class="text-[15px] font-medium">Blocklist subscriptions</h2>
+        <h2 class="text-[15px] font-medium">{{ t('Blocklist subscriptions') }}</h2>
         <span class="st text-[12.5px] text-muted">
-          {{ subs.length }}/{{ blMax }} listed
+          {{ subs.length }}/{{ blMax }} {{ t('listed') }}
           <template v-if="blocklist?.totalExceptions">
             · {{ blocklist.totalExceptions.toLocaleString() }} exceptions
           </template>
@@ -228,7 +228,7 @@ async function toggleRegex(value) {
           class="ml-auto"
           @click="reloadBlocklists"
         >
-          Reload
+          {{ t('Reload') }}
         </AppButton>
       </div>
 
@@ -240,7 +240,7 @@ async function toggleRegex(value) {
             type="url"
             class="field flex-1 min-w-[220px] st"
             placeholder="https://raw.githubusercontent.com/…/domains"
-            aria-label="Blocklist URL to subscribe"
+            :aria-label="t('Blocklist URL to subscribe')"
             autocapitalize="none"
             spellcheck="false"
             :aria-invalid="Boolean(blProblem)"
@@ -251,12 +251,12 @@ async function toggleRegex(value) {
             busy-key="lists.blocklist.add"
             :disabled="!blCanAdd"
           >
-            Add blocklist
+            {{ t('Add blocklist') }}
           </AppButton>
         </form>
 
         <p class="hint mt-2.5" :class="blProblem && 'text-block'" aria-live="polite">
-          {{ blProblem || 'Each subscription is fetched over https and merged in memory; the union answers every query.' }}
+          {{ blProblem || t('Each subscription is fetched over https and merged in memory; the union answers every query.') }}
         </p>
 
         <div v-if="subs.length" class="mt-4 divide-y divide-line/70">
@@ -270,14 +270,14 @@ async function toggleRegex(value) {
               <span
                 v-if="s.source === 'deploy'"
                 class="ml-2 st text-[11px] rounded border border-beacon/40 text-beacon px-1.5 py-0.5 align-middle"
-                title="Comes from the BLOCKLIST_URL deployment variable — editable and deletable like any other."
+                :title="t('Comes from the BLOCKLIST_URL deployment variable — editable and deletable like any other.')"
               >
-                default
+                {{ t('default') }}
               </span>
             </div>
             <div class="flex items-baseline gap-3 text-[12.5px] text-muted st">
-              <span>{{ s.entries.toLocaleString() }} entries</span>
-              <span v-if="s.exceptions">· {{ s.exceptions.toLocaleString() }} except.</span>
+              <span>{{ s.entries.toLocaleString() }} {{ t('entries') }}</span>
+              <span v-if="s.exceptions">· {{ s.exceptions.toLocaleString() }} {{ t('except.') }}</span>
               <span
                 v-if="s.error"
                 class="text-block"
@@ -288,8 +288,8 @@ async function toggleRegex(value) {
             </div>
             <ConfirmButton
               small
-              label="Remove"
-              armed-label="Confirm?"
+              :label="t('Remove')"
+              :armed-label="t('Confirm?')"
               :busy-key="`lists.blocklist.del:${s.url}`"
               @confirm="removeBlocklist(s.url)"
             />
@@ -297,25 +297,25 @@ async function toggleRegex(value) {
         </div>
 
         <p v-else class="hint mt-3">
-          No remote blocklist — every query goes to the upstream unless a rule or filter stops it.
+          {{ t('No remote blocklist — every query goes to the upstream unless a rule or filter stops it.') }}
         </p>
       </div>
 
       <div class="px-5 py-3 border-t border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p class="hint st">
-          {{ blTotal.toLocaleString() }} entries held in memory
+          {{ blTotal.toLocaleString() }} {{ t('entries held in memory') }}
         </p>
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <p v-if="overLimit" class="st text-[12.5px] text-block" role="alert">
-            More than {{ blLimit.toLocaleString() }} entries — the free plan can run the isolate out of memory.
+            {{ t('More than {n} entries — the free plan can run the isolate out of memory.').replace('{n}', blLimit.toLocaleString()) }}
           </p>
           <AppButton
             small
             busy-key="lists.resetWorker"
-            title="Wipe settings, routes and custom rules on the worker — the last resort when it can no longer answer the dashboard."
+            :title="t('Wipe settings, routes and custom rules on the worker — the last resort when it can no longer answer the dashboard.')"
             @click="resetWorker"
           >
-            Reset worker
+            {{ t('Reset worker') }}
           </AppButton>
         </div>
       </div>
@@ -327,16 +327,16 @@ async function toggleRegex(value) {
       class="panel overflow-hidden"
     >
       <div class="px-5 py-4 border-b border-line flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 class="text-[15px] font-medium">{{ form.title }}</h2>
-        <span class="st text-[12.5px] text-muted">{{ items(form.id).length }} listed</span>
+        <h2 class="text-[15px] font-medium">{{ t(form.title) }}</h2>
+        <span class="st text-[12.5px] text-muted">{{ items(form.id).length }} {{ t('listed') }}</span>
         <!-- Regex carries its own on/off switch in this header; the other two
              still point at Settings while their toggles live there. -->
         <ToggleSwitch
           v-if="form.engine && state.settings"
           class="ml-auto !py-0"
           :model-value="Boolean(state.settings.regexBlock)"
-          label="Regex blocking"
-          effect="Apply the patterns below to live queries."
+          :label="t('Regex blocking')"
+          :effect="t('Apply the patterns below to live queries.')"
           busy-key="set.regexBlock"
           @update:model-value="toggleRegex"
         />
@@ -346,7 +346,7 @@ async function toggleRegex(value) {
           class="ml-auto text-[13px] text-beacon underline underline-offset-2"
           @click="setRoute('settings')"
         >
-          {{ form.kicker }}
+          {{ t(form.kicker) }}
         </button>
       </div>
 
@@ -362,7 +362,7 @@ async function toggleRegex(value) {
             type="text"
             class="field flex-1 min-w-[160px] st"
             :placeholder="form.placeholder"
-            :aria-label="`New ${form.title} entry`"
+            :aria-label="t('New entry for {x}').replace('{x}', t(form.title))"
             autocapitalize="none"
             spellcheck="false"
             :aria-invalid="Boolean(problem(form))"
@@ -373,12 +373,12 @@ async function toggleRegex(value) {
             :busy-key="`lists.${form.key}.add`"
             :disabled="!stored(form)"
           >
-            Add
+            {{ t('Add') }}
           </AppButton>
         </form>
 
         <p class="hint mt-2.5" :class="problem(form) && 'text-block'" aria-live="polite">
-          {{ problem(form) || form.hint }}
+          {{ problem(form) || t(form.hint) }}
         </p>
 
         <div v-if="items(form.id).length" class="mt-4 flex flex-wrap gap-2">
@@ -388,7 +388,7 @@ async function toggleRegex(value) {
             type="button"
             class="group inline-flex items-center gap-1.5 rounded border border-line bg-raised pl-2.5 pr-1.5 h-7 st text-[12.5px] hover:border-block/60 transition-colors focus-visible:outline-2 focus-visible:outline-beacon"
             :disabled="state.ops[`lists.${form.key}.del:${item}`]"
-            :aria-label="`Remove ${item} from ${form.title}`"
+            :aria-label="t('Remove {v} from {x}').replace('{v}', item).replace('{x}', t(form.title))"
             @click="remove(form, item)"
           >
             <span v-if="state.ops[`lists.${form.key}.del:${item}`]" class="block w-2.5 h-2.5 rounded-full border-2 border-beacon border-t-transparent spin" aria-hidden="true" />
@@ -400,7 +400,7 @@ async function toggleRegex(value) {
         </div>
 
         <p v-else class="hint mt-3">
-          Empty. {{ form.empty }}
+          {{ t('Empty.') }} {{ t(form.empty) }}
         </p>
       </div>
     </section>
