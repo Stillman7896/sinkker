@@ -95,13 +95,13 @@ interface RouteRule {
 
 /** Everything the dashboard API handlers need, built by worker.js fetch(). */
 interface ApiCtx {
-  rules: import('./rules.js').RuleStore;
-  settings: import('./settings.js').SettingsStore;
-  routes: import('./routing.js').RouteStore;
-  keywords: import('./lists.js').TextSetStore;
-  tlds: import('./lists.js').TextSetStore;
-  regex: import('./lists.js').TextSetStore;
-  blocklist?: import('./blocklist.js').Blocklist;
+  rules: import('./src/rules.js').RuleStore;
+  settings: import('./src/settings.js').SettingsStore;
+  routes: import('./src/routing.js').RouteStore;
+  keywords: import('./src/lists.js').TextSetStore;
+  tlds: import('./src/lists.js').TextSetStore;
+  regex: import('./src/lists.js').TextSetStore;
+  blocklist?: import('./src/blocklist.js').Blocklist;
   /** Load the subscribed lists; force=true revalidates them against their origins. */
   blocklistRefresh?: (force?: boolean) => Promise<void>;
 
