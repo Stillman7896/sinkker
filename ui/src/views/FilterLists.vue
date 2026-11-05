@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { state, runOp, boot, loadLists, loadBlocklists, setRoute } from '../store.js';
+import { t } from '../i18n.js';
 import { api } from '../api.js';
 import AppButton from '../components/AppButton.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
