@@ -57,6 +57,8 @@ Sinkker 在边缘节点应答 DNS over HTTPS（RFC 8484），按拦截清单和�
 
 **最快路径**——点击 *Deploy to Cloudflare*，配置 KV + D1 绑定，将 `DASHBOARD_PASSWORD` 设为 secret 以使用面板。你的 DNS 服务器将部署在 `https://<your-worker>.workers.dev/dns-query`。
 
+部署向导里有一个必填设置：**构建命令**须为 `npm run ui:build`——面板在部署时编译，仓库不保存构建产物。若部署报 `assets.directory does not exist`，即该命令缺失。
+
 **从克隆构建**——Node 22+
 
 ```sh

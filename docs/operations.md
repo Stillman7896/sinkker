@@ -49,6 +49,10 @@ That is the whole loop for a worker-only change. Two things to know:
   dashboard first (the `predeploy` script) and wrangler bundles the output.
   `npm run verify:assets` builds it as a smoke test, and CI runs it on every
   push and PR.
+- **Git-connected deploys need a build command.** In the Cloudflare dashboard
+  (Workers & Pages → sinkker → Settings → Build) set the build command to
+  `npm run ui:build`; the deploy command stays `npx wrangler deploy`. Without
+  it the build container fails with `assets.directory does not exist`.
 - **Schema changes are lazy.** The D1 log table and its columns are created /
   extended automatically by the Worker on the first logged query
   (`ALTER TABLE ... ADD COLUMN`, duplicate-column errors ignored), so an

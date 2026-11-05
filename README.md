@@ -79,6 +79,11 @@ Also checkout https://github.com/serverless-dns/serverless-dns
 set `DASHBOARD_PASSWORD` as a secret to use the dashboard. Your DNS server
 will be deployed at `https://<your-worker>.workers.dev/dns-query`.
 
+One setting in the deploy wizard: the **build command** must be `npm run
+ui:build` — the dashboard is compiled at deploy time and is not stored in the
+repo. If a deploy fails with `assets.directory does not exist`, that command is
+missing in the worker's Build settings.
+
 **From a clone** — Node 22+
 
 ```sh
