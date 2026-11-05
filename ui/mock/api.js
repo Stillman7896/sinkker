@@ -2,11 +2,11 @@
 // Keeps the same routes, payload shapes and, importantly, the same auth flow:
 // everything is 401 until /api/session accepts a password.
 
-import { UPSTREAM_PRESETS, findPreset, probeUpstream, resolveFallback, resolveUpstream } from '../../upstream.js';
-import { normalizeRoute } from '../../routing.js';
-import { normalizeTld, normalizeKeyword, normalizeRegex } from '../../lists.js';
-import { normalizeDomain } from '../../rules.js';
-import { toUnicode } from '../../idn.js';
+import { UPSTREAM_PRESETS, findPreset, probeUpstream, resolveFallback, resolveUpstream } from '../../src/upstream.js';
+import { normalizeRoute } from '../../src/routing.js';
+import { normalizeTld, normalizeKeyword, normalizeRegex } from '../../src/lists.js';
+import { normalizeDomain } from '../../src/rules.js';
+import { toUnicode } from '../../src/idn.js';
 
 const SESSION_COOKIE = 'dns_dash_session';
 const PASSWORD = 'demo';

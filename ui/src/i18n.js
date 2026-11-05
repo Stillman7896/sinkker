@@ -263,6 +263,9 @@ const ZH = {
   'where allowed queries are forwarded': '被放行的查询转发至此',
   '· unsaved change above': '· 上方有未保存的更改',
 
+  'CNAME uncloaking': 'CNAME 隐形追踪揭露',
+  'Refuse answers whose CNAME chain lands on a known hidden tracker (AdGuard cname-trackers list). Can break sites that depend on embedded trackers.': '拒绝 CNAME 链最终落在已知隐藏追踪器上的应答（AdGuard cname-trackers 列表）。可能会导致依赖内嵌追踪器的网站无法正常工作。',
+
 };
 
 export function t(key) {

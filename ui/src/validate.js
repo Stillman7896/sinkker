@@ -1,12 +1,12 @@
 // The worker's own normalizers, re-exported for the dashboard. Both modules are
 // plain ES modules with no worker-only APIs, so the browser bundle uses the
 // exact same rules the API validates with — no second opinion to drift.
-export { normalizeDomain } from '../../rules.js';
-export { toAscii, toUnicode } from '../../idn.js';
-export { normalizeTld, normalizeKeyword, normalizeRegex } from '../../lists.js';
-export { normalizeRouteValue } from '../../routing.js';
+export { normalizeDomain } from '../../src/rules.js';
+export { toAscii, toUnicode } from '../../src/idn.js';
+export { normalizeTld, normalizeKeyword, normalizeRegex } from '../../src/lists.js';
+export { normalizeRouteValue } from '../../src/routing.js';
 // Blocklist subscriptions share their limits between the API and the forms.
-export { normalizeBlocklistUrls, MAX_BLOCKLIST_URLS, BLOCKLIST_ENTRY_LIMIT } from '../../blocklist.js';
+export { normalizeBlocklistUrls, MAX_BLOCKLIST_URLS, BLOCKLIST_ENTRY_LIMIT } from '../../src/blocklist.js';
 
 /** Same test the API applies to a custom provider URL.
  * @param {string} value

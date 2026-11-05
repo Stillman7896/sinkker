@@ -42,6 +42,11 @@ const TOGGLES = [
     label: 'Record allowed queries',
     effect: 'Keep a log row for answers that went through. Switch off to log only what was stopped.',
   },
+  {
+    key: 'cnameUncloaking',
+    label: 'CNAME uncloaking',
+    effect: 'Refuse answers whose CNAME chain lands on a known hidden tracker (AdGuard cname-trackers list). Can break sites that depend on embedded trackers.',
+  },
 ];
 
 const retention = ref(state.settings ? String(state.settings.logRetentionDays) : '30');
