@@ -92,17 +92,17 @@ async function saveBlockedResponse() {
 const ready = computed(() => Boolean(state.settings));
 const retentionValid = computed(() => Number.isInteger(Number(retention.value)) && Number(retention.value) >= 0 && Number(retention.value) <= 3650);
 
-async function toggle(t, value) {
-  const previous = state.settings[t.key];
-  state.settings[t.key] = value; // optimistic; reverted if the worker refuses
+async function toggle(row, value) {
+  const previous = state.settings[row.key];
+  state.settings[row.key] = value; // optimistic; reverted if the worker refuses
   try {
-    await runOp(`set.${t.key}`, {
+    await runOp(`set.${row.key}`, {
       verb: t('Save settings'),
-      ok: `${t(t.label)} ${value ? t('on') : t('off')}`,
-      fn: () => api.saveSettings({ [t.key]: value }),
+      ok: `${t(row.label)} ${value ? t('on') : t('off')}`,
+      fn: () => api.saveSettings({ [row.key]: value }),
     });
   } catch {
-    state.settings[t.key] = previous;
+    state.settings[row.key] = previous;
   }
 }
 
@@ -655,21 +655,21 @@ async function removeRoute(route) {
       <section class="panel px-5 py-4">
         <h2 class="text-[15px] font-medium">{{ t('Filters') }}</h2>
         <div class="mt-1 divide-y divide-line/70" role="group" aria-label="Filter settings">
-          <template v-for="t in TOGGLES" :key="t.key">
+          <template v-for="row in TOGGLES" :key="row.key">
             <div class="flex items-start justify-between gap-4 py-3.5">
               <ToggleSwitch
                 class="flex-1 !py-0"
-                :model-value="state.settings[t.key]"
-                :label="t(t.label)"
-                :effect="t(t.effect)"
-                :busy-key="`set.${t.key}`"
-                @update:model-value="toggle(t, $event)"
+                :model-value="state.settings[row.key]"
+                :label="t(row.label)"
+                :effect="t(row.effect)"
+                :busy-key="`set.${row.key}`"
+                @update:model-value="toggle(row, $event)"
               />
               <button
-                v-if="t.route"
+                v-if="row.route"
                 type="button"
                 class="shrink-0 mt-1 text-[13px] text-muted hover:text-ink underline underline-offset-2"
-                @click="setRoute(t.route)"
+                @click="setRoute(row.route)"
               >
                 {{ t('Open list') }}
               </button>
