@@ -36,10 +36,11 @@
     "ui:dev": "vite --config ui/vite.config.js --host",
     "ui:build": "vite build --config ui/vite.config.js",
     "ui:preview": "vite preview --config ui/vite.config.js",
-    "verify:assets": "npm run ui:build && node tools/check-inline.js && git diff --exit-code -- assets",
+    "verify:assets": "npm run ui:build && node tools/check-inline.js",
     "screenshots": "node tools/screenshots.js",
     "brand": "node tools/render-brand.js",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "predeploy": "npm run ui:build && node tools/check-inline.js"
   },
   "cloudflare": {
     "bindings": {

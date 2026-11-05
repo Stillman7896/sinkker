@@ -150,7 +150,7 @@ exactly why lists are stored as one KV blob rather than one key per entry.
 
 ## The dashboard is a static asset
 
-`ui/` is Vue 3 + Vite + UnoCSS source; `assets/` is the committed build output.
+`ui/` is Vue 3 + Vite + UnoCSS source; `assets/` is the build output, generated at deploy time and not committed.
 `wrangler` bundles `assets/` per the `[assets]` block (`binding = "ASSETS"`) and
 the Worker serves it for any non-API, non-`/dns-query` path:
 
@@ -161,9 +161,8 @@ the Worker serves it for any non-API, non-`/dns-query` path:
 - `not_found_handling = "single-page-application"` serves `index.html` for
   `/dashboard`, and `html_handling = "auto-trailing-slash"` keeps URLs stable.
 
-Because the deployed Worker has no bundler, `assets/` must be rebuilt with
-`npm run ui:build` and committed alongside any `ui/` change. `npm run
-verify:assets` fails on drift, and CI runs it.
+`assets/` is not committed: `npm run deploy` builds it first (the `predeploy`
+script), and CI runs `verify:assets` as a build smoke test.
 
 ## Source layout
 
@@ -193,8 +192,7 @@ That is a deliberate security property — keep it.
 
 `node --test` runs the whole suite; the coverage floor is 85% lines and CI fails
 below it. Two workflows jobs run on every push and pull request: `check`
-(typecheck, lint, tests) and `assets` (the committed dashboard build matches
-`ui/`).
+(typecheck, lint, tests) and `assets` (the dashboard build succeeds).
 
 `tools/check-inline.js` compiles the build output's inline theme script — the one
 piece of JavaScript in `assets/index.html` that no bundler has parsed, and the

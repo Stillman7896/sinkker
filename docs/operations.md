@@ -45,11 +45,10 @@ npm run deploy
 
 That is the whole loop for a worker-only change. Two things to know:
 
-- **`assets/` is committed.** The deployed Worker has no bundler; the dashboard
-  is served from the committed `assets/` build output. Any change under `ui/`
-  needs `npm run ui:build` and the rebuilt `assets/` committed in the same
-  change. `npm run verify:assets` rebuilds and fails on drift, and CI runs it —
-  a PR that touches `ui/` without rebuilding `assets/` does not pass.
+- **`assets/` is a build artifact, not committed.** `npm run deploy` builds the
+  dashboard first (the `predeploy` script) and wrangler bundles the output.
+  `npm run verify:assets` builds it as a smoke test, and CI runs it on every
+  push and PR.
 - **Schema changes are lazy.** The D1 log table and its columns are created /
   extended automatically by the Worker on the first logged query
   (`ALTER TABLE ... ADD COLUMN`, duplicate-column errors ignored), so an

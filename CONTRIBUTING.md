@@ -34,15 +34,15 @@ Everything runs locally: the dashboard dev server answers `/api/*` from
 
 ## The dashboard is a build artifact
 
-`ui/` is the source, `assets/` is the committed Vite output that the Worker
-serves. After any change under `ui/`:
+`ui/` is the source; `assets/` is the Vite output the Worker serves. It is
+NOT committed — it is built when you deploy:
 
 ```sh
-npm run ui:build          # or: npm run verify:assets  (builds + fails on drift)
+npm run deploy            # predeploy builds the dashboard, then wrangler deploy
 ```
 
-If you forget, CI fails on the asset diff — that is deliberate, the deployed
-Worker has no bundler.
+To build without deploying, run `npm run ui:build` (CI builds it as a smoke
+test on every push).
 
 ## Tests are the specification
 

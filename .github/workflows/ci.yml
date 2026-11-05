@@ -27,7 +27,7 @@ jobs:
       - run: npm run check
 
   assets:
-    name: dashboard build is committed
+    name: dashboard builds cleanly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
