@@ -29,6 +29,7 @@ Response route — a fixed answer for the name + subdomains
   > IDN homograph block — xn-- / non-ASCII labels        [if idnBlock]
   > Upstream resolver (Settings, or UPSTREAM_URL)
   > DNS rebinding — private IP in the ANSWER section      [if rebindProtection]
+  > CNAME uncloaking — chain target on hidden-tracker list [if cnameUncloaking]
 ```
 
 A route answers first because it is a direct instruction about that name: the

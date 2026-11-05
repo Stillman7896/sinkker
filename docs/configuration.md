@@ -62,6 +62,7 @@ and is shared across every colo.
 | `tldBlock` | `false` | `settings:main` |
 | `keywordBlock` | `false` | `settings:main` |
 | `regexBlock` | `false` | `settings:main` |
+| `cnameUncloaking` | `false` | `settings:main` |
 | `blocklistUrls` | `null` (deploy var) | `settings:main` |
 | `logPassed` | `true` | `settings:main` |
 | `logRetentionDays` | `30` | `settings:main` |
@@ -82,6 +83,18 @@ Worker reads `settings:main`, applies the patch and writes the blob back, so
 changing the upstream URL never touches the filter switches. Because that write
 is a read-modify-write, it is refused with `503` ("nothing was saved") when the
 stored blob cannot be read — overwriting it with defaults would be worse.
+
+### CNAME uncloaking (`cnameUncloaking`, default OFF)
+
+- After the upstream answer arrives, the CNAME chain in the ANSWER section is
+  walked; if any target suffix-matches a domain on AdGuard's auto-updated
+  [cname-trackers](https://github.com/AdguardTeam/cname-trackers) list (trackers
+  disguised as first-party hostnames), the query is answered with the configured
+  blocked response and logged with status `cloaked`.
+- The queried name is the site's own hostname, so a hit can visibly break the
+  page that embedded the tracker — that is why the toggle defaults to off.
+- Each isolate fetches the list at most once per 6 h; a failed fetch never
+  blocks DNS.
 
 ### DNS rebinding protection (`rebindProtection`, default ON)
 
@@ -128,7 +141,7 @@ after `BLOCKED_MAX_AGE` (300 s) expires.
 | `/api/rules` | List / add (POST `{domain,kind}`) / delete |
 | `/api/rules/bulk` | Bulk import `{kind, domains}` |
 | `/api/test` | Run full pipeline for a domain (mirrors live filtering) |
-| `/api/settings` | Get (GET: settings + resolved provider + preset list + `blocklist` payload) / save (POST `{rebindProtection, idnBlock, tldBlock, keywordBlock, regexBlock, blocklistUrls, logPassed, logRetentionDays, upstreamPreset, upstreamUrl, upstreamRelay, upstreamFailover, upstreamFallbackUrl, blockedResponse}`) |
+| `/api/settings` | Get (GET: settings + resolved provider + preset list + `blocklist` payload) / save (POST `{cnameUncloaking, rebindProtection, idnBlock, tldBlock, keywordBlock, regexBlock, blocklistUrls, logPassed, logRetentionDays, upstreamPreset, upstreamUrl, upstreamRelay, upstreamFailover, upstreamFallbackUrl, blockedResponse}`) |
 | `/api/blocklists` | List (GET: subscriptions + `total`/`entryLimit`/`maxUrls`) / add (POST `{url}`) / remove (DELETE `?url=`) |
 | `/api/blocklists/refresh` | Revalidate every subscription against its origin (POST) |
 | `/api/routes` | List / add (POST `{domain,value,ttl?}`) / delete (`?domain=`) |

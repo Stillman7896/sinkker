@@ -55,6 +55,7 @@ Also checkout https://github.com/serverless-dns/serverless-dns
   by its source. Logs can be turned off in settings.
 - **Custom upstream DNS**, choose from a selection of providers, or enter your own
   DNS over HTTPS provider URL. 
+- **CNAME uncloaking**: answers whose CNAME chain lands on a known disguised tracker (AdGuard's auto-updated cname-trackers list) are refused — opt-in, off by default.
 - **DNS rebinding protection**: internal and special-use names are refused, and a
   private address in an answer (including cloud metadata `169.254.169.254`) is
   dropped before the client sees it.
