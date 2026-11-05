@@ -1,21 +1,15 @@
-# Workers are addressed by name; renaming one creates a *new* Worker and leaves
-# the old one running. Releases before v2.0.0 used "dns-filter-worker" — see
-# docs/operations.md#upgrading before changing this on an existing deployment.
 name = "sinkker"
 main = "worker.js"
 compatibility_date = "2024-09-23"
 
-# Runtime-configurable values (read on every request, no code change needed).
-# BLOCKLIST_URL is still a deploy-time variable; override per-deploy with
-# `wrangler deploy --var BLOCKLIST_URL:https://...` or by editing [vars].
-#
-# UPSTREAM_URL is only a FALLBACK: the resolver is chosen from the dashboard
-# (Settings -> Upstream resolver, stored in KV) and that choice wins. The
-# variable is used when no provider has been picked, which keeps a
-# dashboard-less deployment working exactly as before.
+# Runtime-configurable values.
+# BLOCKLIST_URL and UPSTREAM_URL here are default built-in,
+# They are overridden in the dashboard and stored in KV
+# Variables are used for dashboard-less deployment without setting DASHBOARD_PASSWORD
 [vars]
 BLOCKLIST_URL = "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/pro-plus/domains"
 UPSTREAM_URL = "https://dns.quad9.net/dns-query"
+# UPSTREAM_FALLBACK_URL = "https://dns.google/dns-query"  # failover DoH (see docs/configuration.md)
 
 # Static dashboard UI served as a Worker asset (no template-in-JS).
 # The Worker only runs for these paths; everything else (static files,
@@ -36,23 +30,29 @@ run_worker_first = ["/api/*", "/dns-query", "/dns-query/*", "/healthz", "/health
 not_found_handling = "single-page-application"
 html_handling = "auto-trailing-slash"
 
-# KV for custom allow/deny rules (required for the dashboard).
+# KV for settings and all filtering rules (required for the dashboard).
+# Preview for development
 #   wrangler kv:namespace create RULES
 #   wrangler kv:namespace create RULES --preview
-# Copy the printed ids below:
 [[kv_namespaces]]
 binding = "RULES"
 id = "c1274ab8f14b4dfcac2cd91af7bfda82"
-# preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_ID"
+# preview_id = "changeme"
 
 # Dashboard password (optional but recommended). Set with:
 #   wrangler secret put DASHBOARD_PASSWORD
 # When unset the dashboard is disabled (DoH filtering still works).
+#
+# Code constants (blocklist.js, NOT deploy vars — values in docs/configuration.md):
+#   MAX_BLOCKLIST_URLS     = 10          max concurrent subscriptions
+#   BLOCKLIST_ENTRY_LIMIT  = 1_000_000  merged-entry ceiling across subscriptions
+#   MAX_SOURCE_ENTRIES     = 400_000    per-document entry cap (refused before parse)
+#   MAX_SOURCE_BYTES       = 24 MiB     per-document size cap (refused before parse)
 
-# D1 database for DNS query audit logs (optional but enables the logs tab).
+
+# D1 database, optional but enables the logs tab
 #   wrangler d1 create dns-logs
 #   wrangler d1 execute dns-logs --file=./schema.sql
-# Copy the database_id below:
 [[d1_databases]]
 binding = "LOGS"
 database_name = "dns-logs"

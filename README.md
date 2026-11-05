@@ -5,9 +5,12 @@
 <h1 align="center">Sinkker</h1>
 
 <p align="center">
+  English · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   <b>A DNS sinkhole that runs on Cloudflare Workers.</b><br />
-  Block ads, trackers and malware for every device on your network — no Raspberry Pi to power,
-  no VPS to patch, no DNS container to babysit.
+  Block ads, trackers and malware on all your devices.
 </p>
 
 <p align="center">
@@ -36,74 +39,46 @@ it. It is the Pi-hole-shaped hole in a serverless setup: the blocking runs on
 Cloudflare's network, close to the client, and the free plan is enough for a
 household or a small office.
 
+Also checkout https://github.com/serverless-dns/serverless-dns
+
 ## Features
 
-**Blocking that covers more than a domain list**
-
+- **Password protected dashboard**: your dashboard is private by default. set
+  the password by configuring `DASHBOARD_PASSWORD` in your Workers settings.
+  The dashboard is turned off if no password is set.
 - **Remote blocklists, several at once.** Subscribe up to 10 documents; plain
-  domains, hosts files and AdBlock syntax can be mixed, they are merged into one
-  set, and `@@` exceptions in a list are honoured as allow rules.
+  domains, hosts files and AdBlock syntax can be mixed. The `@@` exceptions
+  for AdBlock syntax list are imported as allow rules.
 - **Your own allow and deny rules**, with subdomain matching — allow
   `example.com` and everything under it is allowed, deny-one-name still works.
-- **Blocked TLDs, keywords and regex** for the junk a blocklist misses — each
-  behind its own toggle, so you only pay for what you switch on.
+- **Live logs** of DNS queries of all connected devices, tag a device to filter
+  by its source. Logs can be turned off in settings.
+- **Custom upstream DNS**, choose from a selection of providers, or enter your own
+  DNS over HTTPS provider URL. 
 - **DNS rebinding protection**: internal and special-use names are refused, and a
   private address in an answer (including cloud metadata `169.254.169.254`) is
   dropped before the client sees it.
-- **IDN homograph blocking** for punycode lookalike domains, one toggle.
+- **IDN homograph blocking** for punycode lookalike domains where
+  internationalized alphabet such as the Cyrillic character “а” (U+0430) looking
+  visually indistinguishable from the Latin character “a” (U+0061).
 - **Choose the blocked answer**: NXDOMAIN, REFUSED, a null IP (`0.0.0.0` / `::`)
-  or NODATA — one setting for every filter, applied without a redeploy.
-- **Response routes**: answer a name yourself — point `nas.home.lan` at a LAN
-  address, or alias one name onto another with a CNAME.
-
-**Privacy**
-
-- **DoH in and DoH out.** Clients speak DNS over HTTPS; upstream does too.
-- **Pick the resolver**: Cloudflare, Cloudflare for families, Quad9, Google,
-  AdGuard, or any DoH endpoint you name — switchable from the dashboard without
-  a redeploy.
+  or NODATA.
+- **Response routes**: answer a request with local set record — point `nas.home.lan`
+  at a LAN address, or alias one name onto another with a CNAME.
+- **Block by TLDs, keywords and regex**
+- **Mandarin UI**: the language button in the header switches the dashboard
+  between English and 简体中文 on the fly (persisted in localStorage, no reload).
 - **Oblivious DoH (RFC 9230)** if you want no single hop to learn both the name
   and your address, and **automatic failover** with negative caching so one dead
   upstream is not an outage.
-- **No telemetry and no runtime dependencies** — the whole resolver is `fetch`
-  plus Web Crypto. Query logs live in *your* D1 database and nowhere else.
-
-**A dashboard, not a config file**
-
-- **Overview** with the DoH endpoint to hand out, query counts, what share of
-  queries was blocked and a client-tag builder for per-device attribution.
-- **Rules** with source badges, one **Probe** box that runs a real domain through
-  the same pipeline a live query takes, and **Filter lists** with per-subscription
-  entry counts, fetch errors and one **Reload** button.
-- **Logs** in D1: search, status and per-client filters, paging, retention.
-- **Backup**: export the complete configuration (settings, rules, routes, lists)
-  to JSON and import it back.
-- Light and dark themes, keyboard and mobile friendly, single sign-in — no
-  browser password dialog, just a session cookie.
-
-**Built to be left alone**
-
-- **One-click deploy** to your Cloudflare account; KV and D1 are provisioned for
-  you, and there is nothing else to run.
-- **`/healthz`** answers with real state — effective settings, resolved upstream,
-  blocklist health — and lists reasons when something is degraded.
-- **Escape hatch.** If a runaway blocklist configures the Worker into a corner,
-  the dashboard's failure screen prints a single password-gated `curl` that wipes
-  the configuration without touching your deployment variables or your logs.
-- **184 tests**, typechecked and linted on every push, with the dashboard build
-  verified against `ui/` in CI.
 
 ## Quick start
 
-**Fastest path** — click *Deploy to Cloudflare*, pick a password when asked, and
-Cloudflare clones the repo, provisions KV + D1 and deploys. Then point a client at
-the URL from the dashboard's Overview page:
+**Fastest path** — click *Deploy to Cloudflare*, configure your KV + D1 bindings,
+set `DASHBOARD_PASSWORD` as a secret to use the dashboard. Your DNS server
+will be deployed at `https://<your-worker>.workers.dev/dns-query`.
 
-```
-https://<your-worker>.workers.dev/dns-query
-```
-
-**From a clone** — Node 22+, a Cloudflare account, and four commands:
+**From a clone** — Node 22+
 
 ```sh
 npm ci
@@ -111,16 +86,6 @@ wrangler kv namespace create RULES --binding RULES --update-config
 wrangler secret put DASHBOARD_PASSWORD
 npm run deploy
 ```
-
-(The committed `wrangler.toml` carries the maintainer's resource ids;
-`--update-config` swaps in yours. Add the optional D1 database — or delete the
-binding, the dashboard just shows no logs — per
-[docs/operations.md](docs/operations.md#manual-in-five-commands).)
-
-Browser: *Settings → Privacy → DNS over HTTPS → custom*, paste the URL. Router,
-AdGuard Home, dnsmasq: same URL wherever a DoH endpoint goes. Full instructions,
-including the optional D1 setup for query logs, are in
-[docs/operations.md](docs/operations.md#deploy).
 
 ## Screenshots
 
@@ -145,7 +110,7 @@ including the optional D1 setup for query logs, are in
 |---|---|
 | [Configuration reference](docs/configuration.md) | Deploy variables, settings, API endpoints, list formats, upstream resolver, logs |
 | [How it works](docs/architecture.md) | Filter precedence, storage design, the free-plan budget, source layout |
-| [Deploy, upgrade, troubleshoot](docs/operations.md) | Setup, client configuration, upgrading, symptom → cause table |
+| [Deploy, upgrade, troubleshoot](docs/operations.md) | Client configuration, upgrading, symptom → cause table |
 | [Contributing](CONTRIBUTING.md) | Setup, test expectations, asset and screenshot generation |
 | [Security policy](SECURITY.md) | Private reporting, scope, hardening expectations |
 | [Changelog](CHANGELOG.md) | What changed, and what to do about it |
@@ -168,10 +133,8 @@ including the optional D1 setup for query logs, are in
   redistribute.
 - Runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), with
   KV, D1 and Workers Builds.
-- Not affiliated with Cloudflare, Pi-hole, AdGuard or the blocklist publishers.
+- Not affiliated with Cloudflare, Pi-hole, AdBlock or the blocklist publishers.
 
 ## License
 
-[Unlicense](LICENSE) — public domain. Use it, fork it, sell it, ship it in a
-product; no attribution required. If you would rather have a warranty-shaped
-permissive license, the code is yours to relicense under MIT or Apache-2.0.
+[Unlicense](https://unlicense.org/), see LICENSE.
