@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS dns_logs (
   id     INTEGER PRIMARY KEY AUTOINCREMENT,
   domain TEXT    NOT NULL,            -- requested QNAME (lowercased)
-  status TEXT    NOT NULL,            -- allow | deny | blocklist | tld | keyword | rebind | idn | none
+  status TEXT    NOT NULL,            -- allow | deny | blocklist | tld | keyword | rebind | idn | cloaked | none
   filter TEXT    NOT NULL,            -- allowlist | denylist | blocklist | tld | keyword | rebind | idn | upstream
   ts     INTEGER NOT NULL,            -- unix epoch milliseconds
   qtype  INTEGER,                     -- DNS query type (1=A, 28=AAAA, 16=TXT, 65=HTTPS, ...)

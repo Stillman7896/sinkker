@@ -47,6 +47,9 @@ globalThis.fetch = async (input, init) => {
     // Echo the query with one public A record; mutated per-test below.
     return new Response(buildResponse(q, globalThis.__answers ?? [{ type: 1, rdata: v4rdata('93.184.216.34') }]));
   }
+  if (url.includes('cname-trackers')) {
+    return new Response('# cloaked trackers\ntracker.net\ncloak.tracker.net\n', { status: 200 });
+  }
   throw new Error('unexpected fetch: ' + url);
 };
 
@@ -1169,4 +1172,56 @@ test('blocklist: an oversized document is refused before parsing and marked on t
   } finally {
     globalThis.fetch = savedFetch;
   }
+});
+
+// ---- CNAME uncloaking ----
+
+/** @param {string} name @returns {number[]} */
+function nameRdata(name) {
+  const bytes = [];
+  for (const label of name.split('.')) {
+    bytes.push(label.length);
+    for (const c of label) bytes.push(c.charCodeAt(0));
+  }
+  bytes.push(0);
+  return bytes;
+}
+
+test('CNAME uncloaking: off by default, blocks when enabled, logs cloaked', async () => {
+  const d1 = new FakeD1();
+  const env = mkEnv({ kv: new FakeKV(), d1 });
+  globalThis.__answers = [
+    { type: 5, rdata: nameRdata('shop.cloak.tracker.net') },
+    { type: 1, rdata: v4rdata('6.6.6.6') },
+  ];
+  const q = buildQuery('metrics.brand.com');
+
+  const off = new Uint8Array(await (await dohGet(env, q)).arrayBuffer());
+  assert.equal(rcode(off), 0, 'toggle off: chain passes');
+  assert.equal(d1.rows[d1.rows.length - 1].status, 'none');
+
+  const login = await worker.fetch(new Request('https://worker.test/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'pw' }),
+  }), env);
+  const cookie = /** @type {string} */ (login.headers.get('set-cookie')).split(';')[0];
+  const saved = await worker.fetch(new Request('https://worker.test/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ cnameUncloaking: true }),
+  }), env);
+  assert.equal(saved.status, 200);
+
+  const on = new Uint8Array(await (await dohGet(env, q)).arrayBuffer());
+  assert.equal(rcode(on), 3, 'toggle on: chain lands on tracker.net, NXDOMAIN');
+  const last = d1.rows[d1.rows.length - 1];
+  assert.equal(last && last.status, 'cloaked');
+  assert.equal(last && last.filter, 'cloaked');
+
+  // A chain that resolves inside the first-party zone must NOT block.
+  globalThis.__answers = [{ type: 5, rdata: nameRdata('cdn.brand.com') }, { type: 1, rdata: v4rdata('6.6.6.6') }];
+  const safe = new Uint8Array(await (await dohGet(env, q)).arrayBuffer());
+  assert.equal(rcode(safe), 0, 'first-party CNAME target passes');
+  globalThis.__answers = undefined;
 });

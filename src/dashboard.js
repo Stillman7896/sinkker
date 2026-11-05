@@ -150,7 +150,7 @@ function buildWhere(entries) {
 function settingsPatch(source, current = {}) {
   /** @type {Partial<FilterSettings>} */
   const patch = {};
-  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover']);
+  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover', 'cnameUncloaking']);
   for (const k of BOOL_KEYS) {
     if (typeof source[k] === 'boolean') patch[k] = source[k]; // k is a boolean key
   }

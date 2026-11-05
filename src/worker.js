@@ -26,6 +26,7 @@ import {
   buildRefusedResponse,
   buildAnswerResponse,
   minTtl,
+  cnameChain,
   base64urlDecode,
   ednsDo,
 } from './dns.js';
@@ -262,6 +263,41 @@ async function ensureBlocklist(env, ctx, force = false) {
   if (failures === pending.length && !blocklist.size) throw firstError || new Error('blocklist unavailable');
 }
 
+
+// ---- CNAME uncloaking (opt-in toggle; list auto-loaded per isolate) ----
+
+/** AdGuard's auto-updated list of tracker domains hidden behind CNAMEs. */
+const CNAME_TRACKERS_URL =
+  'https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt';
+const CLOAKED_TTL = 6 * 3600 * 1000;
+const cloakedList = new Blocklist();
+let cloakedLoadedAt = 0;
+
+/** First cloaked-tracker entry that matches any chain target (suffix match).
+ * @param {string[]} chain @returns {string|null}
+ */
+function cloakedHit(chain) {
+  for (const n of chain) {
+    if (cloakedList.domains.has(n)) return n;
+    for (let i = n.indexOf('.'); i !== -1; i = n.indexOf('.', i + 1)) {
+      const suffix = n.slice(i + 1);
+      if (cloakedList.domains.has(suffix)) return suffix;
+    }
+  }
+  return null;
+}
+
+/** Refresh the cloaked-tracker set at most once per TTL; never throws. */
+async function ensureCloaked() {
+  if (Date.now() - cloakedLoadedAt < CLOAKED_TTL && cloakedList.size > 0) return;
+  cloakedLoadedAt = Date.now(); // one attempt per window even on failure
+  try {
+    const res = await fetch(CNAME_TRACKERS_URL, { cf: { cacheTtl: 21600 } });
+    if (res.ok) cloakedList.load(await res.text());
+    else cloakedLoadedAt = 0;
+  } catch { cloakedLoadedAt = 0; }
+}
+
 /**
  * Forward a query to ONE upstream and return its answer bytes.
  * @param {Uint8Array} queryBuf
@@ -441,6 +477,7 @@ function configEpoch(settings, upstream, fallback) {
     (settings.tldBlock ? 1 : 0) +
     (settings.keywordBlock ? 1 : 0) +
     (settings.regexBlock ? 1 : 0) +
+    (settings.cnameUncloaking ? 1 : 0) +
     // The blocked answer itself is cached, so changing its shape (NXDOMAIN vs
     // null IP ...) must rotate the epoch — otherwise a cached NXDOMAIN would
     // keep answering for up to BLOCKED_MAX_AGE after the setting changed.
@@ -627,6 +664,17 @@ async function handleQuery(queryBuf, env, ctx, client = null) {
         await bg(ctx, logQuery(env, q.name, 'rebind', 'rebind', q.qtype, retention, client));
         // Every answer can differ here; never cache the verdict (TTL only
         // tells the client not to re-ask before re-resolving).
+        return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), '', RULE_MAX_AGE, ctx);
+      }
+    }
+    if (verdict.status === 'none' && settings.cnameUncloaking) {
+      await ensureCloaked();
+      const cloak = cloakedHit(cnameChain(answer));
+      if (cloak) {
+        await bg(ctx, logQuery(env, q.name, 'cloaked', 'cloaked', q.qtype, retention, client));
+        // The queried name is the site's own hostname: answer the QUERY
+        // (not the tracker) with the configured blocked response, and keep
+        // the verdict out of the answer cache (chains change).
         return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), '', RULE_MAX_AGE, ctx);
       }
     }

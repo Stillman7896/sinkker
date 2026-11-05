@@ -175,6 +175,7 @@ test('buildBlockedResponse: a truncated query degrades to REFUSED instead of a b
 
 // ---- CNAME uncloaking helpers ----
 
+/** @param {string} target @returns {Uint8Array} */
 function cnameRR(target) {
   const rd = encodeName(target);
   const rr = new Uint8Array(12 + rd.length);
@@ -186,6 +187,7 @@ function cnameRR(target) {
   return rr;
 }
 
+/** @param {string} qname @param {Uint8Array[]} records @returns {Uint8Array} */
 function respWith(qname, records) {
   const q = buildQueryMessage(qname, 1);
   q.writeUInt16BE(records.length, 6);

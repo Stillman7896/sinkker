@@ -64,6 +64,8 @@ interface FilterSettings {
   keywordBlock: boolean;
   regexBlock: boolean;
   logPassed: boolean;
+  /** Block answers whose CNAME chain lands on a cloaked tracker (AdGuard cname-trackers). */
+  cnameUncloaking: boolean;
   logRetentionDays: number;
   /** Provider id from upstream.js; '' = deployment variable, else built-in default. */
   upstreamPreset: string;
