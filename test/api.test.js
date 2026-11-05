@@ -2,12 +2,12 @@
 // Uses real Request/Response (Node >= 18) against handleApi with FakeKV stores.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handleApi } from '../dashboard.js';
-import { RuleStore } from '../rules.js';
-import { RouteStore } from '../routing.js';
-import { TextSetStore, normalizeKeyword, normalizeRegex } from '../lists.js';
-import { SettingsStore } from '../settings.js';
-import { Blocklist, DEFAULT_BLOCKLIST_URL, MAX_BLOCKLIST_URLS } from '../blocklist.js';
+import { handleApi } from '../src/dashboard.js';
+import { RuleStore } from '../src/rules.js';
+import { RouteStore } from '../src/routing.js';
+import { TextSetStore, normalizeKeyword, normalizeRegex } from '../src/lists.js';
+import { SettingsStore } from '../src/settings.js';
+import { Blocklist, DEFAULT_BLOCKLIST_URL, MAX_BLOCKLIST_URLS } from '../src/blocklist.js';
 import { buildQuery, buildResponse, FakeKV, v4rdata } from './helpers.js';
 
 /**

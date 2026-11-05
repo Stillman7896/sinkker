@@ -52,7 +52,7 @@ either way.
    resolve over DoH (or ODoH), then apply answer-level rebinding protection.
 5. Write the verdict to D1 and return a `application/dns-message` response.
 
-The pipeline itself is pure logic in `filters.js` (`decide()`), which is what
+The pipeline itself is pure logic in `src/filters.js` (`decide()`), which is what
 makes it testable without a Worker, a KV namespace or a network.
 
 ## Where the state lives
@@ -168,17 +168,17 @@ verify:assets` fails on drift, and CI runs it.
 
 | File | Purpose |
 |---|---|
-| `worker.js` | Worker entrypoint, routing, full filter pipeline |
-| `dns.js` | DNS wire parsing + response builders (Workers/Node) |
-| `blocklist.js` | Remote list loader + subdomain matcher |
-| `rules.js` | KV-backed allow/deny store (single blob) + subdomain matching |
-| `lists.js` | Generic newline KV blob stores (keywords, TLDs, regex) + normalizers |
-| `filters.js` | Query-path filter pipeline + `RegexEngine` (compiled-pattern cache) |
-| `settings.js` | KV-backed persistent filter settings (toggles, provider) |
-| `routing.js` | KV-backed response routes + record synthesis |
-| `upstream.js` | Provider presets, resolution order, connection probe |
-| `odoh.js` | Oblivious DoH client: HPKE (RFC 9180) + ODoH (RFC 9230) |
-| `dashboard.js` | JSON API for rules/routes/logs/settings/session |
+| `src/worker.js` | Worker entrypoint, routing, full filter pipeline |
+| `src/dns.js` | DNS wire parsing + response builders (Workers/Node) |
+| `src/blocklist.js` | Remote list loader + subdomain matcher |
+| `src/rules.js` | KV-backed allow/deny store (single blob) + subdomain matching |
+| `src/lists.js` | Generic newline KV blob stores (keywords, TLDs, regex) + normalizers |
+| `src/filters.js` | Query-path filter pipeline + `RegexEngine` (compiled-pattern cache) |
+| `src/settings.js` | KV-backed persistent filter settings (toggles, provider) |
+| `src/routing.js` | KV-backed response routes + record synthesis |
+| `src/upstream.js` | Provider presets, resolution order, connection probe |
+| `src/odoh.js` | Oblivious DoH client: HPKE (RFC 9180) + ODoH (RFC 9230) |
+| `src/dashboard.js` | JSON API for rules/routes/logs/settings/session |
 | `ui/` | Dashboard source (Vue 3 + Vite) |
 | `assets/` | Dashboard build output, served as Worker assets |
 | `schema.sql` | D1 schema for query audit logs |

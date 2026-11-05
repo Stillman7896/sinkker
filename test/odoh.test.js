@@ -8,7 +8,7 @@ import {
   decodePlaintext, encodeMessage, encodePlaintext, expandRelayTemplate, fetchOdohConfig,
   fromHex, hkdfExpand, hkdfExtract, nonceFor, odohKeyId, parseOdohConfigs,
   prepareOdohQuery, queryAad, responseAad, setupBaseR, setupBaseS, toHex, x25519PublicKey,
-} from '../odoh.js';
+} from '../src/odoh.js';
 import { buildQuery, buildResponse, v4rdata } from './helpers.js';
 
 const utf8 = (/** @type {string} */ s) => new TextEncoder().encode(s);

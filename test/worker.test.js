@@ -3,9 +3,9 @@
 // mutations, class rejection, upstream forwarding, and answer-level rebinding.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../worker.js';
-import { MAX_SOURCE_BYTES } from '../blocklist.js';
-import { summariseAnswers } from '../dns.js';
+import worker from '../src/worker.js';
+import { MAX_SOURCE_BYTES } from '../src/blocklist.js';
+import { summariseAnswers } from '../src/dns.js';
 import { buildQuery, buildResponse, v4rdata, FakeKV } from './helpers.js';
 
 // ---- fake Workers globals (must precede any query that triggers loads) -------

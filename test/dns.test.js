@@ -5,7 +5,7 @@ import {
   Buf, parseQuestion, buildNxdomainResponse, buildRefusedResponse,
   buildBlockedResponse, summariseAnswers, RR,
   minTtl, base64urlDecode, ednsDo,
-} from '../dns.js';
+} from '../src/dns.js';
 import { buildQuery, buildResponse, v4rdata } from './helpers.js';
 
 /** @param {Uint8Array} buf */

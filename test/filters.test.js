@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   runQueryFilters, rebindNameHit, idnHit, tldOf,
   isPrivateV4, isPrivateV6, privateAnswerIP, RegexEngine,
-} from '../filters.js';
+} from '../src/filters.js';
 import { buildQuery, buildResponse, v4rdata, v6rdata } from './helpers.js';
 
 // ---- fixtures ----------------------------------------------------------------

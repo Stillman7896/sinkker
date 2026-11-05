@@ -5,7 +5,7 @@
   "description": "Self-hosted DNS sinkhole on Cloudflare Workers — block ads, trackers and malware network-wide from a dashboard, with no server to run.",
   "license": "Unlicense",
   "type": "module",
-  "main": "worker.js",
+  "main": "src/worker.js",
   "keywords": [
     "dns",
     "dns-sinkhole",

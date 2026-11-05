@@ -5,12 +5,12 @@ import assert from 'node:assert/strict';
 import {
   RouteStore, normalizeRoute, normalizeRouteValue, parseRouteLine, formatRouteLine,
   routeRecords, clampTtl, DEFAULT_ROUTE_TTL,
-} from '../routing.js';
+} from '../src/routing.js';
 import {
   buildAnswerResponse, buildQueryMessage, questionEnd, parseIpv4, parseIpv6,
   summariseAnswers, RR, encodeName,
-} from '../dns.js';
-import { runQueryFilters } from '../filters.js';
+} from '../src/dns.js';
+import { runQueryFilters } from '../src/filters.js';
 import { FakeKV } from './helpers.js';
 
 const q = (/** @type {string} */ name, /** @type {number} */ qtype = 1) => buildQueryMessage(name, qtype);

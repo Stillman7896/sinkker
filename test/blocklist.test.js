@@ -10,7 +10,7 @@ import {
   effectiveBlocklistUrls,
   normalizeBlocklistUrls,
   parseBlocklist,
-} from '../blocklist.js';
+} from '../src/blocklist.js';
 
 test('load: plaintext lines parse; comments, blanks and malformed rows are skipped', () => {
   const bl = new Blocklist();

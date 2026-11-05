@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import {
   UPSTREAM_PRESETS, PROBE_NAME, findPreset, isHttpsUrl, probeUpstream, resolveUpstream,
   upstreamPatch, validateUpstreamSettings,
-} from '../upstream.js';
+} from '../src/upstream.js';
 import { buildQuery, buildResponse, v4rdata } from './helpers.js';
-import { buildRefusedResponse } from '../dns.js';
+import { buildRefusedResponse } from '../src/dns.js';
 
 const DEFAULT_SETTINGS = { upstreamPreset: '', upstreamUrl: '', upstreamRelay: '' };
 

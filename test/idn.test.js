@@ -3,7 +3,7 @@
 // reference implementation still agrees with us.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toAscii, toUnicode, punycodeDecode } from '../idn.js';
+import { toAscii, toUnicode, punycodeDecode } from '../src/idn.js';
 
 test('toAscii: foreign characters become the A-label the resolver sees', () => {
   assert.equal(toAscii('bücher.de'), 'xn--bcher-kva.de');

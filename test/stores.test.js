@@ -3,10 +3,10 @@
 // and the "never persist an empty blob over real data" failure guards.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RuleStore, normalizeDomain } from '../rules.js';
-import { TextSetStore, normalizeTld, normalizeKeyword, normalizeRegex, DATA_VERSION_KEY } from '../lists.js';
-import { RegexEngine } from '../filters.js';
-import { SettingsStore, DEFAULT_SETTINGS, clampRetention } from '../settings.js';
+import { RuleStore, normalizeDomain } from '../src/rules.js';
+import { TextSetStore, normalizeTld, normalizeKeyword, normalizeRegex, DATA_VERSION_KEY } from '../src/lists.js';
+import { RegexEngine } from '../src/filters.js';
+import { SettingsStore, DEFAULT_SETTINGS, clampRetention } from '../src/settings.js';
 import { FakeKV } from './helpers.js';
 
 const RULES_KEY = 'rules:data';
