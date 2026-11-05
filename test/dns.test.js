@@ -1,11 +1,7 @@
 // test/dns.test.js — DNS wire parsing, response builders, TTL, base64url.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  Buf, parseQuestion, buildNxdomainResponse, buildRefusedResponse,
-  buildBlockedResponse, summariseAnswers, RR,
-  minTtl, base64urlDecode, ednsDo,
-} from '../src/dns.js';
+import { Buf, parseQuestion, buildNxdomainResponse, buildRefusedResponse, buildBlockedResponse, summariseAnswers, RR, minTtl, base64urlDecode, ednsDo, buildQueryMessage, joinBufs, encodeName, cnameChain, expandName } from '../src/dns.js';
 import { buildQuery, buildResponse, v4rdata } from './helpers.js';
 
 /** @param {Uint8Array} buf */
@@ -175,4 +171,47 @@ test('buildBlockedResponse: a truncated query degrades to REFUSED instead of a b
   assert.equal(buildBlockedResponse(junk, 'nodata')[3] & 0x0f, 5);
   assert.equal(buildBlockedResponse(junk, 'null_ip')[3] & 0x0f, 5);
   assert.equal(buildBlockedResponse(junk, 'refused')[3] & 0x0f, 5);
+});
+
+// ---- CNAME uncloaking helpers ----
+
+function cnameRR(target) {
+  const rd = encodeName(target);
+  const rr = new Uint8Array(12 + rd.length);
+  rr[0] = 0xc0; rr[1] = 0x0c;
+  rr[3] = 5; rr[5] = 1;
+  new DataView(rr.buffer).setUint32(6, 300);
+  new DataView(rr.buffer).setUint16(10, rd.length);
+  rr.set(rd, 12);
+  return rr;
+}
+
+function respWith(qname, records) {
+  const q = buildQueryMessage(qname, 1);
+  q.writeUInt16BE(records.length, 6);
+  return joinBufs([q, ...records]);
+}
+
+test('cnameChain: plain, compressed, chain, none', () => {
+  const plain = respWith('metrics.shop.example', [cnameRR('shop.tracker.example')]);
+  assert.deepEqual(cnameChain(plain), ['shop.tracker.example']);
+
+  const q = buildQueryMessage('a.example', 1);
+  q.writeUInt16BE(1, 6);
+  const rr = new Uint8Array(14);
+  rr[0] = 0xc0; rr[1] = 0x0c; rr[3] = 5; rr[5] = 1;
+  new DataView(rr.buffer).setUint16(10, 2);
+  rr[12] = 0xc0; rr[13] = 0x0c;
+  assert.deepEqual(cnameChain(joinBufs([q, rr])), ['a.example']);
+
+  const chain = respWith('x.example', [cnameRR('mid.example'), cnameRR('real.tracker.example')]);
+  assert.deepEqual(cnameChain(chain), ['mid.example', 'real.tracker.example']);
+
+  assert.deepEqual(cnameChain(buildQueryMessage('none.example', 1)), []);
+  assert.deepEqual(cnameChain(undefined), []);
+});
+
+test('expandName: rejects truncation and pointer loops', () => {
+  assert.equal(expandName(new Uint8Array([3, 97]), 0), null);
+  assert.equal(expandName(new Uint8Array([0xc0, 0x00]), 0), null);
 });

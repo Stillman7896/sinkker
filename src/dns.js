@@ -500,3 +500,65 @@ export function base64urlDecode(str) {
     return null;
   }
 }
+
+// ---- CNAME uncloaking: walk the ANSWER chain ----
+
+/** Read a possibly-compressed domain name at `off` (RFC 1035 4.1.4).
+ * @param {Uint8Array} buf @param {number} off
+ * @returns {{name: string, next: number}|null}
+ */
+export function expandName(buf, off) {
+  const labels = [];
+  let pos = off, end = -1, jumps = 0;
+  for (;;) {
+    if (pos >= buf.length || ++jumps > 64) return null;
+    const len = buf[pos];
+    if ((len & 0xc0) === 0xc0) {
+      if (pos + 1 >= buf.length) return null;
+      if (end < 0) end = pos + 2;
+      pos = ((len & 0x3f) << 8) | buf[pos + 1];
+      continue;
+    }
+    if (len === 0) { if (end < 0) end = pos + 1; break; }
+    if (pos + 1 + len > buf.length) return null;
+    for (let i = 1; i <= len; i++) labels.push(String.fromCharCode(buf[pos + i]));
+    labels.push('.');
+    pos += 1 + len;
+  }
+  let name = labels.join('');
+  if (name.endsWith('.')) name = name.slice(0, -1);
+  return { name: name.toLowerCase(), next: end };
+}
+
+/** All CNAME targets in a DNS response's ANSWER section, in order.
+ * @param {Uint8Array|undefined} buf @returns {string[]} lowercase, no dots
+ */
+export function cnameChain(buf) {
+  if (!buf || buf.length < 12) return [];
+  const qd = (buf[4] << 8) | buf[5];
+  const an = (buf[6] << 8) | buf[7];
+  let off = 12;
+  for (let i = 0; i < qd; i++) {
+    const skipped = skipName(buf, off);
+    if (skipped < 0) return [];
+    off = skipped + 4;
+    if (off > buf.length) return [];
+  }
+  const out = [];
+  for (let i = 0; i < an && off < buf.length; i++) {
+    const name = expandName(buf, off);
+    if (!name) break;
+    off = name.next;
+    if (off + 10 > buf.length) break;
+    const type = (buf[off] << 8) | buf[off + 1];
+    const rdlen = (buf[off + 8] << 8) | buf[off + 9];
+    const rd = off + 10;
+    if (rd + rdlen > buf.length) break;
+    if (type === 5) {
+      const target = expandName(buf, rd);
+      if (target && target.next <= rd + rdlen) out.push(target.name);
+    }
+    off = rd + rdlen;
+  }
+  return out;
+}
