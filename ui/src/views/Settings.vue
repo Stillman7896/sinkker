@@ -540,7 +540,7 @@ async function removeRoute(route) {
           :class="probe.ok ? 'border-pass/40 bg-pass/5' : 'border-block/40 bg-block/5'"
           aria-live="polite"
         >
-          <p class="text-[13px] font-medium" :class="probe.ok ? 'text-pass' : 'text-block'">
+          <p class="text-[13px] font-medium text-ink">
             {{ probe.ok ? t('Answered') : t('No answer') }} · {{ probe.ms }} ms
           </p>
           <p v-if="probe.ok" class="st text-[12.5px] text-muted mt-1 break-all">

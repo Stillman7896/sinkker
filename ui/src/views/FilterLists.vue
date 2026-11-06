@@ -5,7 +5,6 @@ import { t } from '../i18n.js';
 import { api } from '../api.js';
 import AppButton from '../components/AppButton.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
-import ToggleSwitch from '../components/ToggleSwitch.vue';
 import {
   normalizeTld,
   normalizeKeyword,
@@ -188,21 +187,6 @@ async function resetWorker() {
   }).catch(() => {});
 }
 
-// ---- regex engine toggle (mirrors Settings.toggle) -------------------------
-
-async function toggleRegex(value) {
-  const previous = state.settings.regexBlock;
-  state.settings.regexBlock = value; // optimistic; reverted if the worker refuses
-  try {
-    await runOp('set.regexBlock', {
-      verb: t('Save settings'),
-      ok: t('Regex blocking {v}').replace('{v}', value ? t('on') : t('off')),
-      fn: () => api.saveSettings({ regexBlock: value }),
-    });
-  } catch {
-    state.settings.regexBlock = previous;
-  }
-}
 </script>
 
 <template>
@@ -330,19 +314,8 @@ async function toggleRegex(value) {
       <div class="px-5 py-4 border-b border-line flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 class="text-[15px] font-medium">{{ t(form.title) }}</h2>
         <span class="st text-[12.5px] text-muted">{{ items(form.id).length }} {{ t('listed') }}</span>
-        <!-- Regex carries its own on/off switch in this header; the other two
-             still point at Settings while their toggles live there. -->
-        <ToggleSwitch
-          v-if="form.engine && state.settings"
-          class="ml-auto !py-0"
-          :model-value="Boolean(state.settings.regexBlock)"
-          :label="t('Regex blocking')"
-          :effect="t('Apply the patterns below to live queries.')"
-          busy-key="set.regexBlock"
-          @update:model-value="toggleRegex"
-        />
         <button
-          v-else-if="!form.on()"
+          v-if="!form.on()"
           type="button"
           class="ml-auto text-[13px] text-beacon underline underline-offset-2"
           @click="setRoute('settings')"
