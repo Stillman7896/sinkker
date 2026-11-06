@@ -51,7 +51,7 @@ const FORMS = [
     empty: 'Add a pattern like “cdn\\d+\\.example\\.com” to start stopping queries.',
     addLabel: 'regex',
     normalize: normalizeRegex,
-    engine: true, // the section header carries the on/off switch itself
+    on: () => state.settings?.regexBlock,
   },
 ];
 

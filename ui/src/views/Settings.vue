@@ -537,7 +537,7 @@ async function removeRoute(route) {
         <div
           v-if="probe"
           class="mt-3 rounded-md border px-3.5 py-3 rise-in"
-          :class="probe.ok ? 'border-pass/40 bg-pass/5' : 'border-block/40 bg-block/5'"
+          :class="probe.ok ? 'probe-tint-ok' : 'probe-tint-fail'"
           aria-live="polite"
         >
           <p class="text-[13px] font-medium text-ink">

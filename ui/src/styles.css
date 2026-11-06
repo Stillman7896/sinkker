@@ -127,3 +127,13 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+/* Probe result card tint. UnoCSS alpha modifiers (bg-pass/5) cannot apply to
+   var()-based theme colors — they render solid — so tint with color-mix. */
+.probe-tint-ok {
+  border-color: color-mix(in srgb, var(--c-pass) 45%, transparent);
+  background: color-mix(in srgb, var(--c-pass) 10%, transparent);
+}
+.probe-tint-fail {
+  border-color: color-mix(in srgb, var(--c-block) 45%, transparent);
+  background: color-mix(in srgb, var(--c-block) 10%, transparent);
+}
