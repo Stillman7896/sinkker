@@ -8,7 +8,7 @@ import CopyField from '../components/CopyField.vue';
 import Modal from '../components/Modal.vue';
 import Segmented from '../components/Segmented.vue';
 
-const BLOCKED = ['deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn'];
+const BLOCKED = ['deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'cloaked'];
 
 const stats = computed(() => state.stats);
 const blockedTotal = computed(() =>

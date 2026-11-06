@@ -9,6 +9,7 @@ const TOKENS = {
   route: { text: 'route', cls: 'text-beacon border-beacon/40' },
   deny: { text: 'deny rule', cls: 'text-block border-block/40' },
   blocklist: { text: 'blocklist', cls: 'text-block border-block/40' },
+  cloaked: { text: 'CNAME', cls: 'text-block border-block/40' },
   tld: { text: 'TLD rule', cls: 'text-block border-block/40' },
   keyword: { text: 'keyword', cls: 'text-block border-block/40' },
   regex: { text: 'regex', cls: 'text-block border-block/40' },

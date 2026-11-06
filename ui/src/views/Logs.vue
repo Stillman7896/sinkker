@@ -9,7 +9,7 @@ import StatusPill from '../components/StatusPill.vue';
 import { qtypeLabel } from '../qtype.js';
 import { t } from '../i18n.js';
 
-const STATUSES = ['', 'allow', 'deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'none'];
+const STATUSES = ['', 'allow', 'deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'none', 'cloaked'];
 const LIMITS = [25, 50, 100, 250];
 
 const search = ref(state.logs.search);
