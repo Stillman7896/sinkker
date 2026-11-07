@@ -1,0 +1,10 @@
+import { Blocklist } from '../src/blocklist.js';
+const H='https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/pro-plus/domains';
+const A='https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt';
+const hb=()=>(process.memoryUsage().heapUsed/1048576).toFixed(1)+'M';
+const t={h:await(await fetch(H)).text(), a:await(await fetch(A)).text()};
+const bl=new Blocklist(); bl.putSource(H,t.h); bl.putSource(A,t.a);
+const cloak=new Blocklist(); cloak.load(t.a);
+t.h=null; t.a=null; global.gc(); global.gc();
+console.log('entries='+bl.size+' cloak='+cloak.size+' heap='+hb());
+console.log('spot:', bl.isBlocked('ads.google.com'), bl.isBlocked('google.com'), cloak.isBlocked('ads.facebook.com'));

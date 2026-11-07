@@ -399,6 +399,24 @@ apply it up front.
 Set `logPassed: false` to store only blocked queries, `logRetentionDays: 0` to
 keep rows forever (default 30).
 
+### D1 read budget (free plan: 5M rows read / day)
+
+Log searches never scan the whole table. Searches of 3+ characters run through
+a trigram FTS index (`dns_logs_fts`, substring semantics — reads only the
+matched rows); 1-2 character searches become an indexed prefix match. The
+stats overview is cached in KV for 5 minutes, so repeated dashboard loads do
+not each re-read the table.
+
+The FTS index, its sync triggers and a one-time backfill of the newest 72
+hours are created lazily by the Worker on the first qualifying search (also in
+`schema.sql` for up-front application). Rows older than that backfill window
+are stored but not FTS-searchable; everything logged after the first search is
+indexed automatically. The backfill is bounded to 72 hours because the free
+plan also caps D1 at 100k rows *written* per day — a full-history backfill
+would exhaust that for days. To reindex more history manually:
+
+    wrangler d1 execute dns-logs --command "INSERT INTO dns_logs_fts(rowid, domain) SELECT id, domain FROM dns_logs WHERE ts >= (strftime('%s','now','-14 days')*1000) AND id NOT IN (SELECT rowid FROM dns_logs_fts)" --remote
+
 The **Logs** tab supports search, status filter, client-tag filter, paging
 (Prev/Next + rows-per-page), per-row delete, delete-filtered, and clear-all.
 `filter` is redundant with `status` in the UI, so the table shows `status` only.

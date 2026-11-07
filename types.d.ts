@@ -10,7 +10,7 @@ interface KVListPage {
 
 interface KVLike {
   get(key: string, type?: 'text' | 'json'): Promise<any>;
-  put(key: string, value: string): Promise<unknown>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<unknown>;
   delete(key: string): Promise<unknown>;
   list(opts?: { prefix?: string; cursor?: string }): Promise<KVListResultLike>;
 }
@@ -33,6 +33,8 @@ interface D1Statement extends D1Exec {
 
 interface D1Like {
   prepare(sql: string): D1Statement;
+  /** Real D1 has it; fakes may implement it or fall back to per-statement run(). */
+  batch?(statements: D1Statement[]): Promise<unknown>;
 }
 
 /** Workers execution context (subset; sufficient for ctx.waitUntil). */

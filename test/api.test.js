@@ -652,6 +652,9 @@ function logsD1() {
       } else if (/^ts >= \?/i.test(part)) {
         const cutoff = Number(args[i++]);
         out = out.filter((r) => r.ts >= cutoff);
+      } else if (/^id IN \(SELECT rowid FROM dns_logs_fts/i.test(part)) {
+        const phrase = String(args[i++]).replaceAll('"', '');
+        out = out.filter((r) => r.domain.includes(phrase));
       } else {
         throw new Error('unsupported cond: ' + part);
       }
@@ -660,6 +663,14 @@ function logsD1() {
   };
   /** @param {string} sql @param {any[]} args */
   const stmt = (sql, args) => {
+    // FTS bootstrap DDL / backfill / meta reads: no-ops (in-memory mock).
+    if (/^CREATE (VIRTUAL TABLE|TABLE|TRIGGER)/i.test(sql) ||
+        /^INSERT INTO (d1_meta|dns_logs_fts)/i.test(sql)) {
+      return { all: async () => ({ results: [] }), first: async () => null, run: async () => ({ success: true }) };
+    }
+    if (/^SELECT v FROM d1_meta/i.test(sql)) {
+      return { all: async () => ({ results: [] }), first: async () => null, run: async () => ({ success: true }) };
+    }
     const [out, used] = conds(sql, args);
     const limit = Number(args[used] ?? Infinity);
     const offset = Number(args[used + 1] ?? 0);
@@ -700,6 +711,10 @@ function logsD1() {
   };
   return {
     rows,
+    async batch(stmts /** @type {D1Statement[]} */) {
+      for (const st of stmts) await st.run();
+      return [];
+    },
     prepare(sql) {
       return {
         bind: (...a) => stmt(sql, a),

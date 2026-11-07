@@ -19,3 +19,17 @@ CREATE INDEX IF NOT EXISTS idx_dns_logs_domain ON dns_logs(domain);
 CREATE INDEX IF NOT EXISTS idx_dns_logs_status ON dns_logs(status);
 CREATE INDEX IF NOT EXISTS idx_dns_logs_ts     ON dns_logs(ts);
 CREATE INDEX IF NOT EXISTS idx_dns_logs_client ON dns_logs(client);
+
+-- Log-search FTS index (also created lazily by the worker on first search).
+-- Trigram tokenizer => substring matching; sync triggers keep it current;
+-- the worker backfills the newest 72h once (bounded for the free write quota).
+CREATE VIRTUAL TABLE IF NOT EXISTS dns_logs_fts USING fts5(
+  domain, content='dns_logs', content_rowid='id', tokenize='trigram'
+);
+CREATE TABLE IF NOT EXISTS d1_meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TRIGGER IF NOT EXISTS dns_logs_fts_ai AFTER INSERT ON dns_logs BEGIN
+  INSERT INTO dns_logs_fts(rowid, domain) VALUES (new.id, new.domain);
+END;
+CREATE TRIGGER IF NOT EXISTS dns_logs_fts_ad AFTER DELETE ON dns_logs BEGIN
+  INSERT INTO dns_logs_fts(dns_logs_fts, rowid, domain) VALUES ('delete', old.id, old.domain);
+END;

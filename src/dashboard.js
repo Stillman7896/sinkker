@@ -142,6 +142,50 @@ function buildWhere(entries) {
   return { where, args };
 }
 
+// ---- D1 read-budget: FTS index for log search -------------------------------
+//
+// A `LIKE '%x%'` search scans the whole 30-day table twice (rows + COUNT),
+// which alone can exhaust the D1 free tier (5M rows read/day). Searches of
+// >= 3 characters go through a trigram FTS index (substring semantics,
+// reads only the matched rows); 1-2 character searches degrade to an indexed
+// prefix match on idx_dns_logs_domain.
+let logsFtsReady = /** @type {Promise<void> | null} */ (null);
+
+/** Run statements as one batch when the binding supports it.
+ * @param {D1Like} logs @param {D1Statement[]} stmts @returns {Promise<unknown>} */
+async function runBatch(logs, stmts) {
+  if (typeof logs.batch === 'function') return logs.batch(stmts);
+  for (const st of stmts) await st.run();
+}
+
+/** Create the FTS index, its sync triggers and the bounded backfill, once.
+ * @param {D1Like} logs @returns {Promise<void>} */
+function ensureLogsFts(logs) {
+  if (logsFtsReady) return logsFtsReady;
+  logsFtsReady = (async () => {
+    await runBatch(logs, [
+      logs.prepare("CREATE VIRTUAL TABLE IF NOT EXISTS dns_logs_fts USING fts5(domain, content='dns_logs', content_rowid='id', tokenize='trigram')"),
+      logs.prepare('CREATE TABLE IF NOT EXISTS d1_meta (k TEXT PRIMARY KEY, v TEXT)'),
+      logs.prepare("CREATE TRIGGER IF NOT EXISTS dns_logs_fts_ai AFTER INSERT ON dns_logs BEGIN INSERT INTO dns_logs_fts(rowid, domain) VALUES (new.id, new.domain); END"),
+      logs.prepare("CREATE TRIGGER IF NOT EXISTS dns_logs_fts_ad AFTER DELETE ON dns_logs BEGIN INSERT INTO dns_logs_fts(dns_logs_fts, rowid, domain) VALUES ('delete', old.id, old.domain); END"),
+    ]);
+    const done = await logs.prepare("SELECT v FROM d1_meta WHERE k = 'fts_backfill'").first();
+    if (!done) {
+      // One-time backfill of the newest 72h only: D1 free tier allows
+      // 100k rows WRITTEN per day, a full-table backfill would burn days of
+      // that budget. Older rows stay outside FTS search; everything inserted
+      // after the trigger exists is indexed automatically.
+      await runBatch(logs, [
+        /** @type {D1Statement} */ (logs.prepare('INSERT INTO dns_logs_fts(rowid, domain) SELECT id, domain FROM dns_logs WHERE ts >= ?')
+          .bind(Date.now() - 3 * 86400000)),
+        logs.prepare("INSERT INTO d1_meta (k, v) VALUES ('fts_backfill', '1')"),
+      ]);
+    }
+  })();
+  logsFtsReady.catch(() => { logsFtsReady = null; }); // retry on next request
+  return logsFtsReady;
+}
+
 /** Whitelist + validate a settings object into a patch, or { error }.
  * @param {Record<string, unknown>} source
  * @param {Record<string, unknown>} [current] stored settings, for cross-field checks
@@ -629,6 +673,12 @@ export async function handleApi(request, env, url, ctx) {
 
     // GET /api/logs/stats -> aggregate overview (status mix, top blocked, clients, volume)
     if (path === '/api/logs/stats' && request.method === 'GET') {
+      // The four GROUP BYs below are full scans; cache the payload in KV for
+      // 5 minutes so repeated dashboard loads do not each read the table.
+      if (env.RULES) {
+        const hit = await env.RULES.get('logs:stats:v1', 'json');
+        if (hit && Date.now() - hit.at < 5 * 60000) return json(hit.data);
+      }
       const [byStatus, topBlocked, topClients, last24h, total] = await Promise.all([
         logs.prepare('SELECT status, COUNT(*) AS n FROM dns_logs GROUP BY status').all(),
         logs.prepare(
@@ -646,13 +696,17 @@ export async function handleApi(request, env, url, ctx) {
       ]);
       const buckets = new Array(24).fill(0);
       for (const r of last24h.results) buckets[Number(r.hour)] = Number(r.n);
-      return json({
+      const payload = {
         total: total.n,
         byStatus: { rows: byStatus.results, total: total.n },
         topBlocked: topBlocked.results,
         topClients: topClients.results,
         last24h: buckets,
-      });
+      };
+      if (env.RULES) {
+        await env.RULES.put('logs:stats:v1', JSON.stringify({ at: Date.now(), data: payload }), { expirationTtl: 3600 });
+      }
+      return json(payload);
     }
 
     // DELETE /api/logs/:id  -> delete one row
@@ -670,8 +724,13 @@ export async function handleApi(request, env, url, ctx) {
       const client = (url.searchParams.get('client') || '').trim().toLowerCase();
       const untagged = url.searchParams.get('untagged') === '1';
 
+      if (search && search.length >= 3) await ensureLogsFts(logs);
       const { where, args } = buildWhere([
-        [search ? 'domain LIKE ?' : '', search ? `%${search}%` : ''],
+        // >=3 chars: trigram FTS (substring, reads matched rows only);
+        // 1-2 chars: indexed prefix match instead of a full-table LIKE scan.
+        [search && search.length >= 3 ? 'id IN (SELECT rowid FROM dns_logs_fts WHERE dns_logs_fts MATCH ?)' : '',
+         search && search.length >= 3 ? '"' + search.replace(/"/g, '""') + '"' : ''],
+        [search && search.length < 3 ? 'domain LIKE ?' : '', search && search.length < 3 ? `${search}%` : ''],
         [status ? 'status = ?' : '', status],
         [client ? 'client = ?' : '', client],
       ]);
