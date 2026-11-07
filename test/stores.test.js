@@ -265,6 +265,18 @@ test('normalizeRegex validation: bounds, whitespace, compile check', () => {
   assert.equal(normalizeRegex(42), '');
 });
 
+test('normalizeRegex: catastrophic-backtracking shapes rejected, common patterns kept', () => {
+  assert.equal(normalizeRegex('(a+)+$'), '', 'nested quantifier rejected');
+  assert.equal(normalizeRegex('(\\w+\\.)+$'), '', 'quantified group with inner quantifier rejected');
+  assert.equal(normalizeRegex('(a|aa)+$'), '', 'unbounded quantifier over alternation rejected');
+  assert.equal(normalizeRegex('((a+)+b)+c'), '', 'deep nesting caught by recursion');
+  assert.equal(normalizeRegex('(^|\\.)ads?\\.'), '(^|\\.)ads?\\.', 'common sinkhole pattern kept');
+  assert.equal(normalizeRegex('(www)?\\.example\\.com$'), '(www)?\\.example\\.com$', 'plain optional group kept');
+  assert.equal(normalizeRegex('(^|\\.)(ads|tracker)\\.'), '(^|\\.)(ads|tracker)\\.', 'alternation without outer quantifier kept');
+  assert.equal(normalizeRegex('[*+]+'), '[*+]+', 'quantified char class kept');
+  assert.equal(normalizeRegex('\\(a\\+\\)+'), '\\(a\\+\\)+', 'escaped parens are literals');
+});
+
 test('RegexEngine: compile cache keyed on set identity, bad pattern does not shift pairing', async () => {
   const kv = new FakeKV({ 'regex:data': '^ads\\.\n(tracker\\.net$' });
   const store = new TextSetStore(kv, 'regex:data', normalizeRegex);
