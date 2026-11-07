@@ -10,6 +10,7 @@ import {
   effectiveBlocklistUrls,
   normalizeBlocklistUrls,
   parseBlocklist,
+  collapseSuffixes,
 } from '../src/blocklist.js';
 
 test('load: plaintext lines parse; comments, blanks and malformed rows are skipped', () => {
@@ -29,9 +30,10 @@ test('load: plaintext lines parse; comments, blanks and malformed rows are skipp
     'x'.repeat(300) + '.example.com', // >253 chars
   ].join('\n'));
 
-  assert.equal(bl.size, 7);
+  assert.equal(bl.size, 6); // sub.example.com suffix-collapsed into example.com
   assert.ok(bl.domains.has('example.com'));
-  assert.ok(bl.domains.has('sub.example.com'));
+  assert.ok(!bl.domains.has('sub.example.com'), 'child of a blocked parent is collapsed');
+  assert.equal(bl.match('sub.example.com'), 'example.com', 'collapsed child still blocks via parent');
   assert.ok(bl.domains.has('leading.dot.net'), 'leading dot stripped');
   assert.ok(bl.domains.has('wildcard.org'), 'wildcard prefix stripped');
   assert.ok(bl.domains.has('trailing.dot.example'), 'trailing dot stripped');
@@ -55,12 +57,12 @@ test('load: adblock syntax ||domain^ normalizes to domains', () => {
     '||zip.example.zip^',
   ].join('\n'));
 
-  assert.equal(bl.size, 6);
+  assert.equal(bl.size, 5); // path.example.com collapsed into example.com
   assert.ok(bl.domains.has('example.com'));
   assert.ok(bl.domains.has('tracker.example.net'), 'options after $ stripped');
   assert.ok(bl.domains.has('single.example.org'), 'single | prefix handled');
   assert.ok(bl.domains.has('wild.example.io'), '*. stripped');
-  assert.ok(bl.domains.has('path.example.com'), 'cut at the ^ separator');
+  assert.equal(bl.match('path.example.com'), 'example.com', '^ cut, then collapsed into parent');
   assert.ok(bl.domains.has('zip.example.zip'));
   assert.ok(!bl.domains.has('allowed.example.com'), '@@ exception rules are not blocks');
   assert.equal(bl.match('a.b.example.com'), 'example.com', 'parent walking works for adblock entries');
@@ -90,10 +92,11 @@ test('exceptions: @@ lines parse into a separate set, both dialects', () => {
     '! @@comment-like line stays a comment',
   ].join('\n'));
 
-  assert.equal(bl.size, 2, 'blocking rows unchanged');
+  assert.equal(bl.size, 1, 'ads.example.com collapsed into example.com');
   assert.equal(bl.exceptionSize, 2);
   assert.ok(!bl.domains.has('clean.example.com'), 'exception never blocks');
   assert.ok(!bl.domains.has('allowed.example.com'), 'adblock-dialect exception never blocks');
+  assert.equal(bl.match('ads.example.com'), 'example.com', 'collapsed child blocks via parent');
   assert.ok(bl.exceptions.has('clean.example.com'));
   assert.ok(bl.exceptions.has('allowed.example.com'));
   assert.equal(bl.exception('clean.example.com'), 'clean.example.com');
@@ -273,4 +276,16 @@ test('putSource: a document over the entry cap is refused and marked, previous c
   assert.match(String(src.error), /entry cap/, 'the refusal is visible on the source');
   assert.equal(bl.sourceFresh('https://l.test/one', 60_000), true, 'marked fresh: no re-parse on every request');
   assert.ok(bl.sourceLoaded('https://l.test/one'));
+});
+
+test('collapseSuffixes: drops children of blocked ancestors, decisions unchanged', () => {
+  const collapsed = collapseSuffixes(new Set(['a.example.com', 'b.example.com', 'example.com', 'standalone.test']));
+  assert.equal(collapsed.size, 2);
+  assert.ok(collapsed.has('example.com'));
+  assert.ok(collapsed.has('standalone.test'));
+  const bl = new Blocklist();
+  bl.load('a.example.com\nexample.com\n');
+  assert.equal(bl.size, 1);
+  assert.equal(bl.isBlocked('a.example.com'), true);
+  assert.equal(bl.isBlocked('x.a.example.com'), true);
 });
