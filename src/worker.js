@@ -408,12 +408,15 @@ async function logQuery(env, domain, status, filter, qtype, retentionDays, clien
       logsReady = true;
     }
     if (!logsMigrated) {
-      // Tables created before qtype/client existed lack the columns.
-      // CREATE TABLE IF NOT EXISTS no-ops on them; ALTER then errors with
-      // "duplicate column" on anything already present, which we swallow.
-      for (const col of ['qtype INTEGER', 'client TEXT']) {
-        try { await env.LOGS.prepare(`ALTER TABLE dns_logs ADD COLUMN ${col}`).run(); }
-        catch { /* column already present */ }
+      // Tables created before qtype/client existed lack the columns. Probe
+      // the schema instead of blind-ALTERing: the old swallowed
+      // "duplicate column" throw still emitted an error span in Workers
+      // observability on every isolate boot.
+      const cols = new Set(
+        (await env.LOGS.prepare("SELECT name FROM pragma_table_info('dns_logs')").all())
+          .results.map((r) => String(r.name)));
+      for (const [name, def] of [['qtype', 'qtype INTEGER'], ['client', 'client TEXT']]) {
+        if (!cols.has(name)) await env.LOGS.prepare(`ALTER TABLE dns_logs ADD COLUMN ${def}`).run();
       }
       logsMigrated = true;
     }

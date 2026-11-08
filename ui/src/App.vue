@@ -178,8 +178,7 @@ async function retryBoot() {
               <p class="hint mt-3 leading-relaxed">
                 Wipes settings, custom rules and filter lists; deployment variables and the query
                 log stay. Needs <span class="st">DASHBOARD_PASSWORD</span> — the same password as
-                the dashboard. (Documents over 400k entries / 24 MB are refused before parsing now,
-                so this should not recur.)
+                the dashboard.
               </p>
 
               <AppButton variant="solid" block class="mt-4" @click="retryBoot">

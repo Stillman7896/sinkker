@@ -66,6 +66,15 @@ class FakeD1 {
   /** @param {string} sql */
   prepare(sql) {
     const self = this;
+    if (/pragma_table_info/i.test(sql)) {
+      const cols = ['id', 'domain', 'status', 'filter', 'ts', 'qtype', 'client'].map((name) => ({ name }));
+      return {
+        run: () => ({ success: true }),
+        bind: () => ({ run: () => ({ success: true }), all: async () => ({ results: [] }), first: async () => null }),
+        all: async () => ({ results: cols }),
+        first: async () => null,
+      };
+    }
     /** @param {any[]} args */
     const exec = (args) => {
       self.ops.push({ sql, args });
