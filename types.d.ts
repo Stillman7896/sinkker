@@ -105,7 +105,7 @@ interface ApiCtx {
   keywords: import('./src/lists.js').TextSetStore;
   tlds: import('./src/lists.js').TextSetStore;
   regex: import('./src/lists.js').TextSetStore;
-  blocklist?: import('./src/blocklist.js').Blocklist;
+  blocklist?: import('./src/bloblist.js').BlobBlocklist | import('./src/blocklist.js').Blocklist;
   /** Load the subscribed lists; force=true revalidates them against their origins. */
   blocklistRefresh?: (force?: boolean) => Promise<void>;
 

@@ -195,10 +195,14 @@ export async function boot() {
     // from a worker that is degrading (CPU, memory, upstream) must be reported
     // as a failure, or the panel sends the user hunting for the wrong problem.
     if (e.status === 503 && e.code === 'unconfigured') state.phase = 'unconfigured';
+    else if (e.status === 503 && e.code === 'kv_read') {
+      state.phase = 'boot';
+      state.bootError = 'The worker could not read its settings from KV. Retry in a moment, or use the reset hatch if it persists.';
+    }
     else if (e.status === 401) state.phase = 'auth';
     else {
       state.phase = 'boot';
-      state.bootError = e.message;
+      state.bootError = String((e && (e.message || e.error)) || e || '') || 'the worker returned an unexpected response.';
     }
   }
 }
@@ -224,7 +228,7 @@ export async function login(password) {
       'no-cookie',
     );
   }
-  throw new ApiError(state.bootError || 'The worker did not answer after signing in.');
+  throw new ApiError(state.bootError || ('Boot did not complete (phase: ' + state.phase + '). Check the browser console for the failing request.'), 0, 'boot-stalled');
 }
 
 export async function signOut() {

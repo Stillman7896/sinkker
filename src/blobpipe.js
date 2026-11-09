@@ -2,10 +2,14 @@
 // Caller passes entries already suffix-collapsed. Keys: <prefix>:c:<v>:<i>
 const CHUNK_TARGET = 400000; // max bytes per chunk value
 
+/** @typedef {{url: string, entries: number, loadedAt: number, error: string|null, etag: string|null, exItems: string[], exceptions?: number}} BlobSource */
+
+/** @param {string} prefix @param {number} v @param {number} i */
 function chunkKey(prefix, v, i) {
   return prefix + ':c:' + v + ':' + i;
 }
 
+/** @param {string[]} entries @param {number} target */
 function packChunks(entries, target) {
   const uniq = [...new Set(entries)].sort();
   const chunks = [];
@@ -22,17 +26,18 @@ function packChunks(entries, target) {
     size += b;
   }
   if (cur.length) chunks.push(cur.join('\n'));
-  return { chunks: chunks, total: uniq.length };
+  return { chunks, total: uniq.length };
 }
 
+/** @param {KVLike} kv @param {string} prefix @param {{entries: string[], exceptions?: string[], sources?: Array<string|BlobSource>}} opts */
 async function pipeRebuild(kv, prefix, opts) {
   const rows = (opts.sources || []).map((s) => typeof s === 'string'
-    ? { url: s, entries: 0, loadedAt: Date.now(), error: null, etag: null, exItems: [] }
-    : { url: s.url, entries: s.entries || 0, loadedAt: s.loadedAt || Date.now(), error: s.error || null, etag: s.etag || null, exItems: s.exItems || [] });
+    ? { url: s, entries: 0, loadedAt: Date.now(), error: null, etag: null, exItems: [], exceptions: 0 }
+    : { url: s.url, entries: s.entries || 0, loadedAt: s.loadedAt || Date.now(), error: s.error || null, etag: s.etag || null, exItems: s.exItems || [], exceptions: Array.isArray(s.exItems) ? s.exItems.length : 0 });
   const exceptions = opts.exceptions || [];
   if (exceptions.length) {
     if (rows.length) rows[0].exItems = rows[0].exItems.concat(exceptions);
-    else rows.push({ url: 'inline', entries: 0, loadedAt: Date.now(), error: null, etag: null, exItems: exceptions });
+    else rows.push({ url: 'inline', entries: 0, loadedAt: Date.now(), error: null, etag: null, exItems: exceptions, exceptions: exceptions.length });
   }
   const meta = await kv.get(prefix + ':meta', 'json');
   const v = (meta && typeof meta.v === 'number' ? meta.v : 0) + 1;
@@ -40,7 +45,7 @@ async function pipeRebuild(kv, prefix, opts) {
   for (let i = 0; i < packed.chunks.length; i++) {
     await kv.put(chunkKey(prefix, v, i), packed.chunks[i]);
   }
-  const nm = { v: v, chunkCount: packed.chunks.length, total: packed.total, sources: rows, loadedAt: Date.now() };
+  const nm = { v, chunkCount: packed.chunks.length, total: packed.total, sources: rows, loadedAt: Date.now() };
   await kv.put(prefix + ':meta', JSON.stringify(nm));
   let cleaned = 0;
   let cleanupIncomplete = true;
@@ -54,11 +59,11 @@ async function pipeRebuild(kv, prefix, opts) {
         cleaned++;
       }
     }
-  } catch (e) {
+  } catch {
     // kv.list unavailable (test fakes / transient errors): meta swap stays
     // valid, orphaned chunks are reaped by the next successful rebuild.
   }
-  return Object.assign({}, nm, { ok: true, cleaned: cleaned, cleanupIncomplete: cleanupIncomplete });
+  return Object.assign({}, nm, { ok: true, cleaned, cleanupIncomplete });
 }
 
 export { packChunks, pipeRebuild, chunkKey, CHUNK_TARGET };

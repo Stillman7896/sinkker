@@ -13,6 +13,8 @@
 import { Blocklist, effectiveBlocklistUrls, MAX_SOURCE_BYTES, BLOCKLIST_ENTRY_LIMIT, MAX_BLOCKLIST_URLS } from './blocklist.js';
 import { BlobBlocklist } from './bloblist.js';
 import { pipeRebuild } from './blobpipe.js';
+
+/** @typedef {import('./bloblist.js').BlobSource} BlobSource */
 import { RuleStore, RULES_KEY, LEGACY_RULE_PREFIX } from './rules.js';
 import { SettingsStore, SETTINGS_KEY } from './settings.js';
 import { RouteStore, routeRecords, ROUTES_KEY } from './routing.js';
@@ -47,6 +49,8 @@ const PRUNE_EVERY = 500; // opportunistic D1 retention batch size
 // ---- Per-isolate singletons (one shared KV namespace) ----
 const blocklist = new BlobBlocklist('bl');
 Object.defineProperty(blocklist, 'exceptionRules', { get() { return this.exceptions; } });
+
+
 const ruleStore = new RuleStore(/** @type {KVLike} */ (/** @type {unknown} */ (null)));
 const settingsStore = new SettingsStore(/** @type {KVLike} */ (/** @type {unknown} */ (null)));
 const routeStore = new RouteStore(/** @type {KVLike} */ (/** @type {unknown} */ (null)));
@@ -154,15 +158,17 @@ async function resetToken(request) {
  * Conditional fetch of ONE blocklist document; a changed body is staged for
  * the chunked rebuild (the hot path never parses source text).
  */
+/** @param {string} blUrl @param {{etag: string|null, text?: null}} prev @param {ExecutionContext} [ctx] */
 async function fetchBlocklistSource(blUrl, prev, ctx) {
   const cacheKey = new Request(blUrl);
   const headers = prev.etag ? { 'If-None-Match': prev.etag } : undefined;
-  const res = await fetch(blUrl, { headers: headers, cf: { cacheTtl: BLOCKLIST_FETCH_TTL } });
+  const res = await fetch(blUrl, { headers, cf: { cacheTtl: BLOCKLIST_FETCH_TTL } });
   if (res.status === 304) return;
   if (!res.ok) throw new Error('blocklist HTTP ' + res.status + ' for ' + blUrl);
   const text = await res.text();
   if (!withinSourceBudget(blUrl, text)) return;
   stagedSources.set(blUrl, text);
+  /** @type {Record<string, string>} */
   const putHeaders = {
     'Content-Type': 'text/plain',
     'Cache-Control': 'max-age=' + BLOCKLIST_FETCH_TTL,
@@ -177,6 +183,7 @@ async function fetchBlocklistSource(blUrl, prev, ctx) {
  * Stage the edge copy of ONE subscription, then revalidate it when older
  * than the stale window. Never parses on the hot path.
  */
+/** @param {string} blUrl @param {boolean} force @param {ExecutionContext} [ctx] */
 async function ensureBlocklistSource(blUrl, force, ctx) {
   const cacheKey = new Request(blUrl);
   const cached = await matchCache(cacheKey);
@@ -187,7 +194,7 @@ async function ensureBlocklistSource(blUrl, force, ctx) {
   }
   if (!force && Date.now() - fetchedAt < BLOCKLIST_STALE_MS) return;
   const etag = cached ? cached.headers.get('etag') || null : null;
-  await fetchBlocklistSource(blUrl, { etag: etag, text: null }, ctx);
+  await fetchBlocklistSource(blUrl, { etag, text: null }, ctx);
 }
 
 /** Staged source texts + fetch errors for the current rebuild cycle. */
@@ -201,8 +208,10 @@ let rebuildInFlight = false;
  * matching (in-memory, per-isolate, keyed by env identity). Production
  * always binds RULES and never uses this.
  */
+/** @type {KVLike|null} */
 let lastBlKv = null;
 const volatileByEnv = new WeakMap();
+/** @param {Env} env @returns {KVLike} */
 function volatileKvFor(env) {
   let m = volatileByEnv.get(env);
   if (!m) {
@@ -214,17 +223,19 @@ function volatileKvFor(env) {
     put: async (k, v) => { m.set(k, v); },
     delete: async (k) => { m.delete(k); },
     list: async (o) => {
-      const keys = [...m.keys()].filter((k) => k.startsWith(o.prefix)).map((n) => ({ name: n }));
-      return { keys: keys, list_complete: true };
+      const keys = [...m.keys()].filter((k) => k.startsWith((o && o.prefix) || '')).map((n) => ({ name: n }));
+      return { keys, list_complete: true, cursor: null };
     },
   };
 }
 
 /** Parse staged sources once, write chunks via pipeRebuild, swap in. */
+/** @param {KVLike} kv */
 async function rebuildBlocklist(kv) {
   if (rebuildInFlight) return;
   rebuildInFlight = true;
   try {
+    /** @type {BlobSource[]} */
     const rows = [];
     const entries = new Set();
     for (const [url, text] of stagedSources) {
@@ -232,16 +243,16 @@ async function rebuildBlocklist(kv) {
       try {
         p.load(text);
       } catch (e) {
-        rows.push({ url: url, entries: 0, loadedAt: Date.now(), error: String((e && e.message) || e), etag: null, exItems: [] });
+        rows.push({ url, entries: 0, loadedAt: Date.now(), error: String(e instanceof Error ? e.message : e), etag: null, exItems: [] });
         continue;
       }
       const rawEx = p.exceptions;
-      const items = rawEx instanceof Set ? [...rawEx] : (Array.isArray(rawEx) ? rawEx : (typeof p.exceptionRules === 'function' ? p.exceptionRules().map((r) => (r && r.domain) || r) : []));
+      const items = rawEx instanceof Set ? [...rawEx] : (Array.isArray(rawEx) ? rawEx : (typeof p.exceptionRules === 'function' ? p.exceptionRules().map((r) => (typeof r === 'string' ? r : r.domain)) : []));
       for (const d of p.domains) entries.add(d);
-      rows.push({ url: url, entries: p.domains.size, loadedAt: Date.now(), error: null, etag: null, exItems: items });
+      rows.push({ url, entries: p.domains.size, loadedAt: Date.now(), error: null, etag: null, exItems: items });
     }
     for (const [url, msg] of failedSources) {
-      rows.push({ url: url, entries: 0, loadedAt: Date.now(), error: msg, etag: null, exItems: [] });
+      rows.push({ url, entries: 0, loadedAt: Date.now(), error: msg, etag: null, exItems: [] });
     }
     if (!entries.size) return;
     const meta = await pipeRebuild(kv, 'bl', { entries: [...entries], exceptions: [], sources: rows });
@@ -253,6 +264,7 @@ async function rebuildBlocklist(kv) {
 }
 
 /** Fetch every subscription, rebuild chunks when anything changed. */
+/** @param {Env} env @param {KVLike} kv @param {ExecutionContext} [ctx] */
 async function refreshBlocklist(env, kv, ctx) {
   const urls = await blocklistUrls(env);
   if (!urls.length) return;
@@ -271,6 +283,7 @@ async function refreshBlocklist(env, kv, ctx) {
     if (refusedSources.size) {
       // Budget refusals degrade: keep serving existing chunks, mark the
       // source on the panel; a cold deploy gets an empty (harmless) list.
+      /** @type {BlobSource[]} */
       const rows = [];
       if (blocklist.version >= 0) {
         for (const r of blocklist.sources) {
@@ -278,7 +291,7 @@ async function refreshBlocklist(env, kv, ctx) {
         }
       }
       for (const [url, msg] of refusedSources) {
-        rows.push({ url: url, entries: 0, loadedAt: Date.now(), error: msg, etag: null, exItems: [] });
+        rows.push({ url, entries: 0, loadedAt: Date.now(), error: msg, etag: null, exItems: [] });
       }
       if (blocklist.version >= 0) {
         const cur = await kv.get('bl:meta', 'json');
@@ -305,6 +318,7 @@ async function refreshBlocklist(env, kv, ctx) {
  * stale meta = background refresh; changed subscriptions or first deploy
  * rebuild inline.
  */
+/** @param {Env} env @param {ExecutionContext} [ctx] @param {boolean} [force] */
 async function ensureBlocklist(env, ctx, force = false) {
   ensureKv(env);
   const kv = boundKv || volatileKvFor(env);
@@ -327,6 +341,7 @@ async function ensureBlocklist(env, ctx, force = false) {
 }
 
 /** True when the configured subscriptions match the loaded source rows. */
+/** @param {Env} env @returns {Promise<boolean>} */
 async function subscriptionsUnchanged(env) {
   const urls = await blocklistUrls(env);
   const known = blocklist.sources.map((r) => r.url);
@@ -341,7 +356,6 @@ const CNAME_TRACKERS_URL =
   'https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt';
 const CLOAKED_TTL = 6 * 3600 * 1000;
 const cloakedList = new BlobBlocklist('cloak');
-let cloakedLoadedAt = 0;
 
 /** First cloaked-tracker entry that matches any chain target (suffix match).
  * @param {string[]} chain @returns {string|null}
@@ -362,20 +376,16 @@ async function ensureCloaked() {
   if (!cloakedList.chunks.length && boundKv) await cloakedList.loadMeta(boundKv);
   if (cloakedList.size > 0 && Date.now() - cloakedList.loadedAt < CLOAKED_TTL) return;
   if (!boundKv) return;
-  cloakedLoadedAt = Date.now();
   try {
-    const res = await fetch(CNAME_TRACKERS_URL, { cf: { cacheTtl: 21600 } });
+  const res = await fetch(CNAME_TRACKERS_URL, { cf: { cacheTtl: 21600 } });
     if (res.ok) {
       const text = await res.text();
       const entries = text.split('\n').map((t) => t.trim()).filter(Boolean);
-      const meta = await pipeRebuild(boundKv, 'cloak', { entries: entries, exceptions: [], sources: [] });
+      const meta = await pipeRebuild(boundKv, 'cloak', { entries, exceptions: [], sources: [] });
       await cloakedList.loadFromKV(boundKv, meta);
-    } else {
-      cloakedLoadedAt = 0;
     }
-  } catch { cloakedLoadedAt = 0; }
+  } catch { /* best effort */ }
 }
-
 /**
  * Forward a query to ONE upstream and return its answer bytes.
  * @param {Uint8Array} queryBuf

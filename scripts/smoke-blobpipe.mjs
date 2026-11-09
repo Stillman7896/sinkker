@@ -17,7 +17,7 @@ for (let i = 0; i < 12000; i++) domains.push('host' + i + '.example.net');
 domains.push('ads.example.com', 'tracker.io');
 const body = domains.join('\n') + '\n@@ok.test\n';
 
-let mode = '200';
+const mode = '200';
 globalThis.fetch = async () => {
   if (mode === '304') return new Response(null, { status: 304, headers: { etag: '"e1"' } });
   return new Response(body, { status: 200, headers: { etag: '"e1"' } });

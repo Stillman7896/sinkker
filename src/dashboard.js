@@ -402,7 +402,11 @@ export async function handleApi(request, env, url, ctx) {
     if (!settings) return json({ error: 'settings not available' }, { status: 501 });
 
     if (request.method === 'GET') {
-      await settings.refresh(true);
+      // A failed KV read must not serve DEFAULT_SETTINGS as if they were the
+      // user's own: that reads as a settings wipe in the dashboard. Fail loudly.
+      if (!(await settings.refresh(true))) {
+        return json({ error: 'settings could not be read from KV', code: 'kv_read' }, { status: 503 });
+      }
       await warmBlocklists(env, ctx);
       const current = settings.get();
       return json({
@@ -476,8 +480,11 @@ export async function handleApi(request, env, url, ctx) {
   if (path === '/api/blocklists' || path === '/api/blocklists/refresh') {
     if (!settings) return json({ error: 'settings not available' }, { status: 501 });
     // The subscription list lives in settings; read KV before deriving it so a
-    // cold isolate doesn't answer (or save) from DEFAULT_SETTINGS.
-    await settings.refresh();
+    // cold isolate doesn't answer (or save) from DEFAULT_SETTINGS. A failed
+    // read aborts: deriving subscriptions from defaults would clobber them.
+    if (!(await settings.refresh(true))) {
+      return json({ error: 'settings could not be read from KV', code: 'kv_read' }, { status: 503 });
+    }
 
     if (request.method === 'GET') {
       await warmBlocklists(env, ctx);

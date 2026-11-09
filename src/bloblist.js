@@ -98,7 +98,7 @@ function* ancestors(domain) {
  */
 
 /**
- * @typedef {{url: string, entries: number, loadedAt: number, error: string|null, etag: string|null, exItems: string[]}} BlobSource
+ * @typedef {{url: string, entries: number, loadedAt: number, error: string|null, etag: string|null, exItems: string[], exceptions?: number}} BlobSource
  */
 export class BlobBlocklist {
   /**
@@ -117,7 +117,7 @@ export class BlobBlocklist {
     this.size = 0;
     this.exceptionSize = 0;
     this.loadedAt = 0;
-    /** @type {string[]} */
+    /** @type {BlobSource[]} */
     this.sources = [];
     this.version = -1;
     this.progress = 'empty';
@@ -128,7 +128,7 @@ export class BlobBlocklist {
    * atomically. On any partial read the previous version keeps
    * serving and false is returned (no leak window, ever).
    * @param {KVLike} kv KV namespace holding chunk keys "prefix:c:v:i".
-   * @param {{v: number, chunkCount: number, exceptions?: string[], total?: number, sources?: string[], loadedAt?: number} | null} meta Meta record.
+   * @param {{v: number, chunkCount: number, exceptions?: string[], total?: number, sources?: BlobSource[], ranges?: Array<{url: string, from: number, to: number}>, loadedAt?: number} | null} meta Meta record.
    * @returns {Promise<boolean>} True when a complete set is loaded.
    */
   async loadFromKV(kv, meta) {
@@ -174,7 +174,7 @@ export class BlobBlocklist {
    */
   async loadMeta(kv) {
     if (!kv) return false;
-    let meta = null;
+    let meta;
     try {
       const raw = await kv.get(this.prefix + ':meta');
       meta = raw ? /** @type {any} */ (JSON.parse(raw)) : null;
@@ -224,10 +224,6 @@ export class BlobBlocklist {
     return this.match(domain) !== null && this.exception(domain) === null;
   }
 
-  /**
-   * Source URLs recorded in the meta record (dashboard compatibility).
-   * @returns {string[]}
-   */
   /** Drop all in-memory state (KV binding changed / forced reload). */
   reset() {
     this.chunks = [];
@@ -240,6 +236,11 @@ export class BlobBlocklist {
     this.sources = [];
     this.version = -1;
     this.progress = 'empty';
+  }
+
+  /** Legacy-compat: exceptions as read-only allow rows (see blocklist.js). */
+  exceptionRules() {
+    return this.exceptions.map((d) => ({ domain: d, kind: 'allow', src: 'blocklist' }));
   }
 
   listSources() {
