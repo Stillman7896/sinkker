@@ -48,7 +48,6 @@ const PRUNE_EVERY = 500; // opportunistic D1 retention batch size
 
 // ---- Per-isolate singletons (one shared KV namespace) ----
 const blocklist = new BlobBlocklist('bl');
-Object.defineProperty(blocklist, 'exceptionRules', { get() { return this.exceptions; } });
 
 
 const ruleStore = new RuleStore(/** @type {KVLike} */ (/** @type {unknown} */ (null)));
