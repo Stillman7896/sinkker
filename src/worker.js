@@ -33,6 +33,7 @@ import {
   cnameChain,
   base64urlDecode,
   ednsDo,
+  buildQueryMessage,
 } from './dns.js';
 
 const DNS_MEDIA_TYPE = 'application/dns-message';
@@ -791,6 +792,28 @@ async function testDomain(domain, env, ctx) {
 
   const settings = settingsStore.get();
   const verdict = runQueryFilters(stores, settings, domain);
+  // Probe mirrors the live resolve path for CNAME uncloaking: a name that is
+  // only blocked through the cloaked-tracker list must not report a pass.
+  if (verdict.status === 'none' && !verdict.route && settings.cnameUncloaking) {
+    try {
+      const upstream = resolveUpstream(settings, env);
+      const fallback = resolveFallback(upstream, settings, env);
+      const answer = await forwardToUpstream(buildQueryMessage(domain, 1), upstream, fallback);
+      await ensureCloaked();
+      const cloak = cloakedHit(cnameChain(answer));
+      if (cloak) {
+        return {
+          domain,
+          status: 'blocked',
+          filter: 'cloaked',
+          matched: cloak,
+          blocklistSize: blocklist.size,
+          route: null,
+          note: 'CNAME uncloaking: the site resolves through ' + cloak,
+        };
+      }
+    } catch { /* upstream failed — fall back to the static verdict */ }
+  }
   return {
     domain,
     status: verdict.status,
