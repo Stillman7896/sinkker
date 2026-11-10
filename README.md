@@ -56,6 +56,11 @@ Also checkout https://github.com/serverless-dns/serverless-dns
 - **Custom upstream DNS**, choose from a selection of providers, or enter your own
   DNS over HTTPS provider URL. 
 - **CNAME uncloaking**: answers whose CNAME chain lands on a known disguised tracker (the auto-updated [cname-trackers](https://github.com/AdguardTeam/cname-trackers) list by [AdGuard](https://github.com/AdguardTeam)) are refused — opt-in, off by default.
+- **Threat feed (TIF) blocking**: an optional layer backed by the HaGeZi
+  [Threat Intelligence Feeds](https://github.com/hagezi/dns-blocklists) list
+  (~1.4M malware, phishing and scam domains), built by a Durable Object and
+  verified hit-by-hit so legitimate domains are never blocked by accident.
+  Off by default.
 - **DNS rebinding protection**: internal and special-use names are refused, and a
   private address in an answer (including cloud metadata `169.254.169.254`) is
   dropped before the client sees it.

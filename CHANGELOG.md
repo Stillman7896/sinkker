@@ -5,6 +5,16 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- **Threat feed (TIF) blocking** (`tifProtection`, default off): optional layer
+  backed by the HaGeZi TIF list (Threat Intelligence Feeds, ~1.4M entries of
+  malware, phishing and scam domains). The list exceeds the free-plan CPU
+  budget, so a Durable Object build farm parses it and publishes an XOR-16
+  filter plus sorted KV chunks; every filter hit is verified exactly, so there
+  are no false blocks. Names and CNAME chain targets are checked. Zero cost
+  while off; managed from the dashboard Threat feed card (`/api/tif`).
+
 ## 2.1.0 — 2026-10-30
 
 ### Added

@@ -27,6 +27,7 @@ Response route — a fixed answer for the name + subdomains
   > Regex rule (full-name pattern match)                 [if regexBlock]
   > DNS rebinding — internal/special-use names           [if rebindProtection]
   > IDN homograph block — xn-- / non-ASCII labels        [if idnBlock]
+  > TIF threat feed — filter hit, verified in sorted chunks [if tifProtection]
   > Upstream resolver (Settings, or UPSTREAM_URL)
   > DNS rebinding — private IP in the ANSWER section      [if rebindProtection]
   > CNAME uncloaking — chain target on hidden-tracker list [if cnameUncloaking]
@@ -37,6 +38,10 @@ worker never asks an upstream for it, and it outranks even an explicit deny
 rule. Allow wins over deny everywhere else, so you can carve holes in the
 upstream Hagezi list — including letting an allowlisted name resolve to a
 private IP past the rebinding check.
+
+The TIF layer (when enabled) runs both before the upstream call and again
+over the resolved CNAME chain, so a threat-feed domain is caught whether it
+is queried directly or reached through a redirect.
 
 A `@@` exception in the blocklist file cancels only the **blocklist** step: the
 name falls through to the filters below it, and custom rules still outrank it
@@ -67,6 +72,9 @@ makes it testable without a Worker, a KV namespace or a network.
 | KV | `routes:data` | newline `domain<TAB>type<TAB>value<TAB>ttl` |
 | KV | `settings:main` | JSON of the toggles, subscription list and chosen provider |
 | KV | `data:version` | timestamp bumped on **any** list write |
+| KV | `tif:meta` | TIF build metadata: version, entry count, filter key, per-chunk spans |
+| KV | `tif:c:<v>:<i>` | sorted ~400 KB chunks of the TIF list |
+| KV | `tif:filter:<v>` | XOR-16 filter over the TIF entries |
 | D1 | `dns_logs` | one row per resolved query |
 
 `data:version` is shared by every store: one tiny read per cache TTL tells all of
@@ -110,6 +118,8 @@ limits that actually matter are
 - **Answers**: edge cache + isolate LRU, keyed by name, type, EDNS state and the
   current upstream configuration; positive answers honour record TTLs, negative
   answers are held for 60 s.
+- **TIF filter**: meta cached for 60 s, filter loaded lazily once per isolate;
+  verification reads at most one sorted chunk per flagged name (LRU of 3).
 - **Config epoch**: changing the upstream provider/fallback, or the blocklist URL
   set, rotates the key so an answer produced under the old configuration is never
   replayed.

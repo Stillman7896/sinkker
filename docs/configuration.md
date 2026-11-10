@@ -63,6 +63,7 @@ and is shared across every colo.
 | `keywordBlock` | `false` | `settings:main` |
 | `regexBlock` | `false` | `settings:main` |
 | `cnameUncloaking` | `false` | `settings:main` |
+| `tifProtection` | `false` | `settings:main` |
 | `blocklistUrls` | `null` (deploy var) | `settings:main` |
 | `logPassed` | `true` | `settings:main` |
 | `logRetentionDays` | `30` | `settings:main` |
@@ -95,6 +96,26 @@ stored blob cannot be read — overwriting it with defaults would be worse.
   page that embedded the tracker — that is why the toggle defaults to off.
 - Each isolate fetches the list at most once per 6 h; a failed fetch never
   blocks DNS.
+
+### Threat feed (TIF) blocking (`tifProtection`, default OFF)
+
+An optional extra layer backed by the HaGeZi TIF (Threat Intelligence Feeds)
+list (~1.4M entries of malware, phishing and scam domains). The list is far
+too large to parse within the free-plan worker CPU budget, so a Durable
+Object (`TifBuilder`) builds it off to the side: it publishes sorted ~400 KB
+chunks plus an XOR-16 filter (~3.5 MB) to KV, and the query path only ever
+touches the filter. Every filter hit is confirmed by a binary search in the
+sorted chunks, so a hash false positive can never block a legitimate domain.
+Names and CNAME chain targets are both checked, so a threat-feed domain is
+caught whether it is queried directly or reached through a redirect.
+
+Cost when off: zero. When on: the meta key is read at most once per minute,
+the filter stays in isolate memory, and verification reads a single chunk
+only for names the filter flagged. The first build runs automatically when
+the toggle is switched on and writes a few dozen KV keys, which fits the
+free plan write quota for a handful of rebuilds per day. The dashboard
+Threat feed card shows version, entry count, size and the last build time,
+and can trigger a rebuild manually.
 
 ### DNS rebinding protection (`rebindProtection`, default ON)
 
@@ -141,9 +162,10 @@ after `BLOCKED_MAX_AGE` (300 s) expires.
 | `/api/rules` | List / add (POST `{domain,kind}`) / delete |
 | `/api/rules/bulk` | Bulk import `{kind, domains}` |
 | `/api/test` | Run full pipeline for a domain (mirrors live filtering) |
-| `/api/settings` | Get (GET: settings + resolved provider + preset list + `blocklist` payload) / save (POST `{cnameUncloaking, rebindProtection, idnBlock, tldBlock, keywordBlock, regexBlock, blocklistUrls, logPassed, logRetentionDays, upstreamPreset, upstreamUrl, upstreamRelay, upstreamFailover, upstreamFallbackUrl, blockedResponse}`) |
+| `/api/settings` | Get (GET: settings + resolved provider + preset list + `blocklist` payload) / save (POST `{cnameUncloaking, rebindProtection, idnBlock, tldBlock, keywordBlock, regexBlock, blocklistUrls, logPassed, logRetentionDays, upstreamPreset, upstreamUrl, upstreamRelay, upstreamFailover, upstreamFallbackUrl, blockedResponse, tifProtection}`) |
 | `/api/blocklists` | List (GET: subscriptions + `total`/`entryLimit`/`maxUrls`) / add (POST `{url}`) / remove (DELETE `?url=`) |
 | `/api/blocklists/refresh` | Revalidate every subscription against its origin (POST) |
+| `/api/tif` | Threat feed status (GET: `meta`, `enabled`, `builder`) / rebuild (POST) |
 | `/api/routes` | List / add (POST `{domain,value,ttl?}`) / delete (`?domain=`) |
 | `/api/upstream/test` | Send one real query to a candidate provider: `{ok, ms, rcode, answers, sample}` or `{ok:false, error}` |
 | `/api/filters/tlds` | List / add (POST `{value}`) / remove (DELETE `?value=`) |

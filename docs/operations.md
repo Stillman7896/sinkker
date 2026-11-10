@@ -95,6 +95,7 @@ deleting them only frees namespace clutter.
 | A setting changed on one device shows the old value elsewhere | Normal propagation: isolates cache settings for 30 s | Wait ~30 s; not a bug |
 | A blocked response type did not change immediately | Answers are cached; the chosen value is part of the cache key | Takes effect on the next uncached query; up to 300 s for held answers |
 | Logs tab is empty but the resolver works | D1 binding `LOGS` missing, or logging turned off | Configure the D1 binding; check `logPassed` / log retention in Settings |
+| TIF toggle on but the Threat feed card shows no meta / nothing blocked | First build still running or failed — needs the `TIF_BUILDER` Durable Object binding | Wait a minute for the auto-build; check that `wrangler.toml` has the `TIF_BUILDER` binding and migration; trigger a rebuild from the card |
 | Worker error page (1101) on every path | Configuration corner: monster list exhausting CPU/memory | POST `/healthz/reset` (below), then re-add lists one at a time |
 | Dashboard unreachable but DoH works | Assets drift or API breakdown | Redeploy with a rebuilt `assets/` (`npm run ui:build`); the reset hatch still works |
 | Answer for a name is stale after changing its route | Route TTL served to clients (default 300 s, max 86400) | Wait out the TTL or lower the route's TTL |
