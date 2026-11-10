@@ -13,6 +13,8 @@
 import { Blocklist, effectiveBlocklistUrls, MAX_SOURCE_BYTES, BLOCKLIST_ENTRY_LIMIT, MAX_BLOCKLIST_URLS } from './blocklist.js';
 import { BlobBlocklist } from './bloblist.js';
 import { pipeRebuild } from './blobpipe.js';
+import { Xor16 } from './xorfilter.js';
+export { TifBuilder } from './tifdo.js'; // Durable Object class (see tifdo.js)
 
 /** @typedef {import('./bloblist.js').BlobSource} BlobSource */
 import { RuleStore, RULES_KEY, LEGACY_RULE_PREFIX } from './rules.js';
@@ -356,6 +358,93 @@ const CNAME_TRACKERS_URL =
   'https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt';
 const CLOAKED_TTL = 6 * 3600 * 1000;
 const cloakedList = new BlobBlocklist('cloak');
+
+// ---- TIF threat filter (XOR-16 + sorted-chunk verify; built by the DO) ----
+/** @type {import('./xorfilter.js').Xor16|null} */
+let tifFilter = null;
+/** @type {any} */
+let tifMeta = null;
+let tifMetaAt = 0;
+let tifBuildTried = false;
+const tifChunkCache = new Map();
+
+/** Lazy TIF state: meta (60s TTL) + filter blob; triggers one DO build when
+ * the toggle is on but nothing is published yet. Never throws. */
+/** @param {Env} env */
+async function ensureTif(env) {
+  const kv = boundKv;
+  if (!kv) return;
+  if (!tifMeta || Date.now() - tifMetaAt > 60000) {
+    const m = await kv.get('tif:meta', 'json').catch(() => null);
+    if (m) {
+      tifMeta = m;
+      tifFilter = null;
+    }
+    tifMetaAt = Date.now();
+  }
+  if (!tifMeta) {
+    if (!tifBuildTried && env && env.TIF_BUILDER) {
+      tifBuildTried = true;
+      env.TIF_BUILDER.fetch(new Request('https://tif/build')).catch(() => {});
+    }
+    return;
+  }
+  if (!tifFilter) {
+    const buf = await kv.get(tifMeta.filterKey, 'arrayBuffer').catch(() => null);
+    if (!buf) return;
+    try {
+      tifFilter = new Xor16(buf);
+    } catch {
+      tifMeta = null; // broken blob: DO rebuild on a later request
+    }
+  }
+}
+
+/** Exact membership in the sorted chunks (binsearch by [min,max] ranges). */
+/** @param {string} name @returns {Promise<boolean>} */
+async function tifVerify(name) {
+  if (!tifMeta || !tifMeta.spans || !boundKv) return false;
+  const rs = tifMeta.spans;
+  let lo = 0, hi = rs.length - 1, hit = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (name < rs[mid].min) hi = mid - 1;
+    else if (name > rs[mid].max) lo = mid + 1;
+    else { hit = mid; break; }
+  }
+  if (hit < 0) return false;
+  let lines = tifChunkCache.get(hit);
+  if (!lines) {
+    const text = await boundKv.get('tif:c:' + tifMeta.v + ':' + hit).catch(() => null);
+    if (!text) return false;
+    lines = text.split('\n');
+    if (tifChunkCache.size > 2) tifChunkCache.delete(tifChunkCache.keys().next().value);
+    tifChunkCache.set(hit, lines);
+  }
+  let a = 0, b = lines.length - 1;
+  while (a <= b) {
+    const m = (a + b) >> 1;
+    const c = name < lines[m] ? -1 : name > lines[m] ? 1 : 0;
+    if (c === 0) return true;
+    if (c < 0) b = m - 1; else a = m + 1;
+  }
+  return false;
+}
+
+/** Filter hit -> exact verify; walks suffix labels (max 4). Null = pass. */
+/** @param {string} name @returns {Promise<string|null>} */
+async function tifBlocked(name) {
+  if (!tifFilter) return null;
+  let n = name, hops = 0;
+  while (n && hops < 4) {
+    if (tifFilter.has(n) && (await tifVerify(n))) return n;
+    const dot = n.indexOf('.');
+    if (dot === -1) break;
+    n = n.slice(dot + 1);
+    hops++;
+  }
+  return null;
+}
 
 /** First cloaked-tracker entry that matches any chain target (suffix match).
  * @param {string[]} chain @returns {string|null}
@@ -745,6 +834,17 @@ async function handleQuery(queryBuf, env, ctx, client = null) {
     return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), key, maxAge, ctx);
   }
 
+  if (verdict.status === 'none' && settings.tifProtection) {
+    try {
+      await ensureTif(env);
+      const tif = await tifBlocked(q.name);
+      if (tif) {
+        await bg(ctx, logQuery(env, q.name, 'tif', 'tif', q.qtype, retention, client));
+        return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), key, BLOCKED_MAX_AGE, ctx);
+      }
+    } catch { /* degrade: TIF off for this query */ }
+  }
+
   // allow | none -> forward upstream
   try {
     const answer = await forwardToUpstream(queryBuf, upstream, fallback);
@@ -756,6 +856,15 @@ async function handleQuery(queryBuf, env, ctx, client = null) {
         // Every answer can differ here; never cache the verdict (TTL only
         // tells the client not to re-ask before re-resolving).
         return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), '', RULE_MAX_AGE, ctx);
+      }
+    }
+    if (verdict.status === 'none' && settings.tifProtection) {
+      for (const t of cnameChain(answer).slice(0, 6)) {
+        const tif = await tifBlocked(t);
+        if (tif) {
+          await bg(ctx, logQuery(env, q.name, 'tif', 'tif', q.qtype, retention, client));
+          return respond(buildBlockedResponse(queryBuf, settings.blockedResponse, q.qtype), '', BLOCKED_MAX_AGE, ctx);
+        }
       }
     }
     if (verdict.status === 'none' && settings.cnameUncloaking) {
@@ -792,13 +901,31 @@ async function testDomain(domain, env, ctx) {
 
   const settings = settingsStore.get();
   const verdict = runQueryFilters(stores, settings, domain);
+  if (verdict.status === 'none' && !verdict.route && settings.tifProtection) {
+    try {
+      await ensureTif(env);
+      const tif = await tifBlocked(domain);
+      if (tif) {
+        return { domain, status: 'blocked', filter: 'tif', matched: tif, blocklistSize: blocklist.size, route: null, note: 'TIF threat feed match: ' + tif };
+      }
+    } catch { /* degrade: TIF off for this probe */ }
+  }
   // Probe mirrors the live resolve path for CNAME uncloaking: a name that is
   // only blocked through the cloaked-tracker list must not report a pass.
-  if (verdict.status === 'none' && !verdict.route && settings.cnameUncloaking) {
+  if (verdict.status === 'none' && !verdict.route && (settings.cnameUncloaking || settings.tifProtection)) {
     try {
       const upstream = resolveUpstream(settings, env);
       const fallback = resolveFallback(upstream, settings, env);
       const answer = await forwardToUpstream(buildQueryMessage(domain, 1), upstream, fallback);
+      if (settings.tifProtection) {
+        await ensureTif(env);
+        for (const t of cnameChain(answer).slice(0, 6)) {
+          const hit = await tifBlocked(t);
+          if (hit) {
+            return { domain, status: 'blocked', filter: 'tif', matched: hit, blocklistSize: blocklist.size, route: null, note: 'TIF threat feed via chain: ' + hit };
+          }
+        }
+      }
       await ensureCloaked();
       const cloak = cloakedHit(cnameChain(answer));
       if (cloak) {

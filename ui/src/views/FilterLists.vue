@@ -101,7 +101,7 @@ async function remove(form, value) {
   }).catch(() => {});
 }
 
-// ---- blocklist subscriptions ------------------------------------------------
+// ---- blocklist subscriptions
 
 const blocklist = computed(() => state.blocklist);
 const subs = computed(() => blocklist.value?.subscriptions ?? []);

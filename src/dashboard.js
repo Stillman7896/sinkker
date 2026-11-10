@@ -194,7 +194,7 @@ function ensureLogsFts(logs) {
 function settingsPatch(source, current = {}) {
   /** @type {Partial<FilterSettings>} */
   const patch = {};
-  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover', 'cnameUncloaking']);
+  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover', 'cnameUncloaking', 'tifProtection']);
   for (const k of BOOL_KEYS) {
     if (typeof source[k] === 'boolean') patch[k] = source[k]; // k is a boolean key
   }
@@ -395,6 +395,25 @@ export async function handleApi(request, env, url, ctx) {
     const unicode = toUnicode(domain);
     const result = await testFn(domain, env);
     return json({ ...result, unicode: unicode === domain ? null : unicode });
+  }
+
+  // ---- TIF threat filter status + manual rebuild ----
+  if (path === '/api/tif') {
+    if (request.method === 'GET') {
+      const meta = env.RULES ? await env.RULES.get('tif:meta', 'json').catch(() => null) : null;
+      return json({ meta: meta || null, enabled: Boolean(settings.get().tifProtection), builder: Boolean(env.TIF_BUILDER) });
+    }
+    if (request.method === 'POST') {
+      if (!env.TIF_BUILDER) return json({ error: 'TIF builder DO not deployed (update wrangler.toml + redeploy)' }, { status: 501 });
+      try {
+        const res = await env.TIF_BUILDER.fetch(new Request('https://tif/build'));
+        const data = await res.json();
+        return json(data, { status: data && data.ok ? 200 : 500 });
+      } catch (e) {
+        return json({ error: String(e instanceof Error ? e.message : e) }, { status: 500 });
+      }
+    }
+    return json({ error: 'method not allowed' }, { status: 405 });
   }
 
   // ---- settings (KV, persistent) ----

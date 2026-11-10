@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   regexBlock: false,      // block queries matching any Blocked-regex pattern
   logPassed: true,        // write allow/none rows to dns_logs; false = blocks only
   cnameUncloaking: false, // block answers whose CNAME chain lands on a known cloaked tracker
+  tifProtection: false,   // block names/chains matching the TIF threat filter (DO-built)
   logRetentionDays: 30,   // delete dns_logs rows older than this; 0 = keep forever
   upstreamPreset: '',     // provider id from upstream.js; '' = deploy variable, else built-in default
   upstreamUrl: '',        // DoH URL for the 'custom' provider

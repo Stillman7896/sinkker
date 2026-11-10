@@ -85,6 +85,10 @@ export const api = {
   removeBlocklist: (url) => request('/api/blocklists', { method: 'DELETE', query: { url } }),
   reloadBlocklists: () => request('/api/blocklists/refresh', { method: 'POST' }),
 
+  // TIF threat filter (DO-built)
+  tif: () => request('/api/tif'),
+  rebuildTif: () => request('/api/tif', { method: 'POST' }),
+
   // escape hatch: clears settings + custom rules straight on the worker
   resetWorker: (password) => request('/healthz/reset', { method: 'POST', body: { password } }),
 

@@ -12,7 +12,7 @@ export const INTERNAL_TLDS = new Set([
 
 /** Statuses answered with NXDOMAIN instead of forwarded. */
 export const BLOCKED_QUERY_STATUSES = new Set([
-  'deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'cloaked',
+  'deny', 'blocklist', 'tld', 'keyword', 'regex', 'rebind', 'idn', 'cloaked', 'tif',
 ]);
 
 /** Last label of a lowercased FQDN, or ''.

@@ -9,8 +9,8 @@ interface KVListPage {
 }
 
 interface KVLike {
-  get(key: string, type?: 'text' | 'json'): Promise<any>;
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<unknown>;
+  get(key: string, type?: 'text' | 'json' | 'arrayBuffer'): Promise<any>;
+  put(key: string, value: string | ArrayBuffer, options?: { expirationTtl?: number }): Promise<unknown>;
   delete(key: string): Promise<unknown>;
   list(opts?: { prefix?: string; cursor?: string }): Promise<KVListResultLike>;
 }
@@ -53,6 +53,8 @@ interface Env {
   /** Optional fallback DoH server used when the primary fails (see upstream.js). */
   UPSTREAM_FALLBACK_URL?: string;
   DASHBOARD_PASSWORD?: string;
+  /** Durable Object that builds the TIF filter + chunks (see tifdo.js). */
+  TIF_BUILDER?: { fetch(request: Request): Promise<Response> };
 }
 
 /** How a blocked query is answered (see buildBlockedResponse in dns.js). */
@@ -68,6 +70,8 @@ interface FilterSettings {
   logPassed: boolean;
   /** Block answers whose CNAME chain lands on a cloaked tracker (AdGuard cname-trackers). */
   cnameUncloaking: boolean;
+  /** Threat-feed (Hagezi TIF) blocking via the DO-built filter; see tifdo.js. */
+  tifProtection: boolean;
   logRetentionDays: number;
   /** Provider id from upstream.js; '' = deployment variable, else built-in default. */
   upstreamPreset: string;

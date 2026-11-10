@@ -13,20 +13,25 @@ function chunkKey(prefix, v, i) {
 function packChunks(entries, target) {
   const uniq = [...new Set(entries)].sort();
   const chunks = [];
+  const spans = [];
   let cur = [], size = 0;
   for (let i = 0; i < uniq.length; i++) {
     const l = uniq[i];
     const b = l.length + 1;
     if (cur.length && size + b > target) {
       chunks.push(cur.join('\n'));
+      spans.push({ min: cur[0], max: cur[cur.length - 1] });
       cur = [];
       size = 0;
     }
     cur.push(l);
     size += b;
   }
-  if (cur.length) chunks.push(cur.join('\n'));
-  return { chunks, total: uniq.length };
+  if (cur.length) {
+    chunks.push(cur.join('\n'));
+    spans.push({ min: cur[0], max: cur[cur.length - 1] });
+  }
+  return { chunks, spans, total: uniq.length };
 }
 
 /** @param {KVLike} kv @param {string} prefix @param {{entries: string[], exceptions?: string[], sources?: Array<string|BlobSource>}} opts */
@@ -45,7 +50,7 @@ async function pipeRebuild(kv, prefix, opts) {
   for (let i = 0; i < packed.chunks.length; i++) {
     await kv.put(chunkKey(prefix, v, i), packed.chunks[i]);
   }
-  const nm = { v, chunkCount: packed.chunks.length, total: packed.total, sources: rows, loadedAt: Date.now() };
+  const nm = { v, chunkCount: packed.chunks.length, total: packed.total, spans: packed.spans, sources: rows, loadedAt: Date.now() };
   await kv.put(prefix + ':meta', JSON.stringify(nm));
   let cleaned = 0;
   let cleanupIncomplete = true;

@@ -57,3 +57,12 @@ id = "c1274ab8f14b4dfcac2cd91af7bfda82"
 binding = "LOGS"
 database_name = "dns-logs"
 database_id = "295f7331-0f31-42bb-8610-640eb0e38de5"
+
+# Durable Object build farm: parses huge TIF sources and publishes the
+# XOR-16 filter + sorted chunks to KV (free plan: SQLite-backed class).
+[durable_objects]
+bindings = [{ name = "TIF_BUILDER", class_name = "TifBuilder" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TifBuilder"]

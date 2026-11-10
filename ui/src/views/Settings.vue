@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { state, runOp, loadRoutes, setRoute } from '../store.js';
 import { api, ApiError } from '../api.js';
 import AppButton from '../components/AppButton.vue';
@@ -47,12 +47,17 @@ const TOGGLES = [
     label: 'CNAME uncloaking',
     effect: 'Refuse answers whose CNAME chain lands on a known hidden tracker (AdGuard cname-trackers list). Can break sites that depend on embedded trackers.',
   },
+  {
+    key: 'tifProtection',
+    label: 'Threat feed (TIF) blocking',
+    effect: 'Refuse names matching the Hagezi Threat Intelligence Feed (~1.4M entries, packed into a compact filter by a Durable Object; exact verification before any block). Also follows CNAME chains. The first build runs shortly after enabling.',
+  },
 ];
 
 const retention = ref(state.settings ? String(state.settings.logRetentionDays) : '30');
 const retentionError = ref('');
 
-// ---- blocked query response --------------------------------------------------
+// ---- blocked query response
 
 const blockedResponseOptions = [
   { value: 'nxdomain', label: 'NXDOMAIN — the name does not exist' },
@@ -132,7 +137,31 @@ async function saveRetention() {
   }
 }
 
-// ---- upstream resolver -------------------------------------------------------
+// ---- threat feed (TIF)
+
+const tifMeta = ref(null);
+const tifBuilder = ref(false);
+async function loadTif() {
+  try {
+    const r = await api.tif();
+    tifMeta.value = r.meta;
+    tifBuilder.value = r.builder;
+  } catch { tifMeta.value = null; }
+}
+async function rebuildTif() {
+  await runOp('set.tifRebuild', {
+    verb: 'Rebuild TIF filter',
+    ok: (r) => 'Filter v' + r.v + ' published (' + r.total + ' entries)',
+    fn: async () => {
+      const r = await api.rebuildTif();
+      await loadTif();
+      return r;
+    },
+  });
+}
+onMounted(loadTif);
+
+// ---- upstream resolver
 
 const provider = ref(state.settings?.upstreamPreset || '');
 const customUrl = ref(state.settings?.upstreamUrl || '');
@@ -201,7 +230,7 @@ function applyConfig(r) {
   if ('fallback' in r) state.fallback = r.fallback;
 }
 
-// ---- fallback server ---------------------------------------------------------
+// ---- fallback server
 
 const fallbackUrl = ref(state.settings?.upstreamFallbackUrl || '');
 const fallbackOn = computed(() => state.settings?.upstreamFailover !== false);
@@ -312,7 +341,7 @@ async function testConnection() {
   }).catch(() => {});
 }
 
-// ---- domain response routing --------------------------------------------------
+// ---- domain response routing
 
 const routeDomain = ref('');
 const routeValue = ref('');
@@ -680,6 +709,20 @@ async function removeRoute(route) {
               </button>
             </div>
           </template>
+        </div>
+      </section>
+
+      <!-- Threat feed (TIF) -->
+      <section class="panel px-5 py-4">
+        <h2 class="text-[15px] font-medium">{{ t('Threat feed') }}</h2>
+        <p class="hint mt-1">{{ t('Hagezi TIF packed into a compact filter by a Durable Object; every filter hit is verified against the sorted data before a query is stopped.') }}</p>
+        <p v-if="tifMeta" class="mt-2 text-[13px] text-muted">
+          v{{ tifMeta.v }} — {{ tifMeta.total.toLocaleString() }} entries · filter {{ Math.max(1, Math.round((tifMeta.filterBytes || 0) / 1024)) }} KB · built {{ new Date(tifMeta.builtAt).toLocaleString() }}
+        </p>
+        <p v-else class="mt-2 text-[13px] text-muted">{{ t('No filter published yet — switch on Threat feed (TIF) blocking, then rebuild.') }}</p>
+        <div class="mt-3">
+          <AppButton v-if="tifBuilder" busy-key="set.tifRebuild" @click="rebuildTif">{{ t('Rebuild filter') }}</AppButton>
+          <span v-else class="text-[13px] text-muted">{{ t('Rebuild needs the TifBuilder Durable Object (wrangler.toml + redeploy).') }}</span>
         </div>
       </section>
 
