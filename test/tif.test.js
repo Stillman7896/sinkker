@@ -1,15 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildXor16, Xor16 } from '../src/xorfilter.js';
-import { parseTifText, buildTif, TifBuilder } from '../src/tifdo.js';
+import { parseTifText, buildTif, TifBuilder, callTifBuilder, tifCheck } from '../src/tifdo.js';
 
 /** Minimal KV mock: get/put/delete/list over a Map. */
 function kvMock() {
   const map = new Map();
   return {
     map,
-    /** @param {string} key @param {string=} _type @returns {Promise<any>} */
-    async get(key, _type) { return map.has(key) ? map.get(key) : null; },
+    /** @param {string} key @param {string=} type @returns {Promise<any>} */
+    async get(key, type) {
+      const v = map.has(key) ? map.get(key) : null;
+      if (v === null) return null;
+      return type === "json" ? JSON.parse(v) : v;
+    },
     /** @param {string} key @param {any} val @returns {Promise<void>} */
     async put(key, val) { map.set(key, val); },
     /** @param {string} key @returns {Promise<void>} */
@@ -118,6 +122,39 @@ test('TifBuilder: upstream failure surfaces as 500 with message', async () => {
     const body = await res.json();
     assert.equal(body.ok, false);
     assert.match(body.error, /HTTP 500/);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test('callTifBuilder: canonical idFromName/get path; invalid bindings rejected', async () => {
+  let seen = null;
+  /** @type {{ fetch(req: Request): Promise<Response> }} */
+  const stub = { async fetch(req) { seen = req.url; return new Response("ok"); } };
+  /** @type {{ idFromName(name: string): string, get(id: string): { fetch(req: Request): Promise<Response> } }} */
+  const ns = { idFromName: (n) => n, get: () => stub };
+  const res = await callTifBuilder({ TIF_BUILDER: ns });
+  assert.equal(res.status, 200);
+  assert.equal(seen, 'https://tif/build');
+  await assert.rejects(() => callTifBuilder({}), /binding missing or invalid/);
+  await assert.rejects(() => callTifBuilder({ TIF_BUILDER: { fetch: () => {} } }), /binding missing or invalid/);
+});
+
+test('tifCheck: reports filter hit and exact verification', async () => {
+  const kv = kvMock();
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => new Response(SAMPLE);
+  try {
+    await buildTif(kv, 'https://tif.example/list');
+    const hit = await tifCheck(kv, 'ads.evil.com');
+    assert.equal(hit.filterHit, true);
+    assert.equal(hit.verified, true);
+    assert.equal(hit.matched, 'ads.evil.com');
+    const miss = await tifCheck(kv, 'clean.example.com');
+    assert.equal(miss.filterHit, false);
+    assert.equal(miss.verified, false);
+    const bare = await tifCheck(null, 'a.com');
+    assert.equal(bare.metaLoaded, false);
   } finally {
     globalThis.fetch = orig;
   }

@@ -14,6 +14,7 @@ import { Blocklist, effectiveBlocklistUrls, MAX_SOURCE_BYTES, BLOCKLIST_ENTRY_LI
 import { BlobBlocklist } from './bloblist.js';
 import { pipeRebuild } from './blobpipe.js';
 import { Xor16 } from './xorfilter.js';
+import { callTifBuilder } from './tifdo.js';
 export { TifBuilder } from './tifdo.js'; // Durable Object class (see tifdo.js)
 
 /** @typedef {import('./bloblist.js').BlobSource} BlobSource */
@@ -385,7 +386,7 @@ async function ensureTif(env) {
   if (!tifMeta) {
     if (!tifBuildTried && env && env.TIF_BUILDER) {
       tifBuildTried = true;
-      env.TIF_BUILDER.fetch(new Request('https://tif/build')).catch(() => {});
+      callTifBuilder(env).catch(() => {});
     }
     return;
   }
