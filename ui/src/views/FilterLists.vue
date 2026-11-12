@@ -5,6 +5,7 @@ import { t } from '../i18n.js';
 import { api } from '../api.js';
 import AppButton from '../components/AppButton.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
+import ToggleSwitch from '../components/ToggleSwitch.vue';
 import {
   normalizeTld,
   normalizeKeyword,
@@ -57,17 +58,9 @@ const FORMS = [
 
 const draft = ref({ tld: '', keyword: '', regex: '' });
 const blDraft = ref('');
-const blProblem = computed(() => {
-  const v = blDraft.value.trim();
-  if (!v) return '';
-  if (!isHttpsUrl(v)) return t('Needs an https:// URL — the worker fetches the list over https.');
-  if (subs.value.some((s) => s.url === v)) return t('That blocklist is already subscribed.');
-  return '';
-});
 
 const items = (id) => (id === 'tlds' ? state.tlds : id === 'regex' ? state.regex : state.keywords);
 const typed = (form) => draft.value[form.key].trim();
-// Same normalizer the API validates with, so a valid entry is always submittable.
 const stored = (form) => form.normalize(typed(form));
 const problem = (form) => (typed(form) && !stored(form) ? form.invalid : '');
 
@@ -88,8 +81,8 @@ async function add(form) {
         return r;
       },
     });
-    draft.value[form.key] = ''; // kept for fixing when the worker refuses
-  } catch { /* the alert stack carries the reason */ }
+    draft.value[form.key] = '';
+  } catch { /* handled by toast */ }
 }
 
 async function remove(form, value) {
@@ -123,9 +116,7 @@ const categories = computed(() => blocklist.value?.categories || { nsfw: false, 
 const isCustomMode = computed(() => currentPreset.value === '' && Array.isArray(blocklist.value?.subscriptions));
 const customSubs = computed(() => {
   if (!isCustomMode.value) return [];
-    // In custom mode, all subs are treated as custom unless we track them separately.
-  // For simplicity in this UI refactor, if preset is '', all shown subs are custom.
-  return subs.value.filter(s => s.source !== 'deploy'); 
+  return subs.value;
 });
 
 async function selectPreset(p) {
@@ -144,7 +135,6 @@ async function switchToCustom() {
     verb: t('Switch to custom'),
     ok: () => t('Custom mode enabled'),
     fn: async () => {
-      // Clear preset, keep existing URLs as custom base if any, or start empty
       await api.saveSettings({ blocklistPreset: '', blocklistUrls: [] });
       await loadBlocklists();
     },
@@ -163,19 +153,63 @@ async function toggleCategory(cat, val) {
   }).catch(() => {});
 }
 
+const blProblem = computed(() => {
+  const v = blDraft.value.trim();
+  if (!v) return '';
+  if (!isHttpsUrl(v)) return t('Needs an https:// URL — the worker fetches the list over https.');
+  if (subs.value.some((s) => s.url === v)) return t('That blocklist is already subscribed.');
+  return '';
+});
 const blCanAdd = computed(() => isHttpsUrl(blDraft.value.trim()) && !blProblem.value && !atMax.value);
 
+async function addBlocklist() {
+  const url = blDraft.value.trim();
+  if (!blCanAdd.value) return;
+  try {
+    await runOp('lists.blocklist.add', {
+      verb: t('Add blocklist'),
+      ok: (r) => `${r.subscriptions.length} ${r.subscriptions.length === 1 ? t('subscription') : t('subscriptions')}`,
+      undo: async () => {
+        await api.removeBlocklist(url);
+        await loadBlocklists();
+      },
+      fn: async () => {
+        const r = await api.addBlocklist(url);
+        await loadBlocklists();
+        return r;
+      },
+    });
+    blDraft.value = '';
+  } catch { /* handled by toast */ }
+}
 
+async function removeBlocklist(url) {
+  await runOp(`lists.blocklist.del:${url}`, {
+    verb: t('Remove blocklist'),
+    ok: t('Blocklist removed'),
+    undo: async () => {
+      await api.addBlocklist(url);
+      await loadBlocklists();
+    },
+    fn: async () => {
+      await api.removeBlocklist(url);
+      await loadBlocklists();
+      return url;
+    },
+  }).catch(() => {});
+}
 
+async function reloadBlocklists() {
+  await runOp('lists.blocklist.reload', {
+    verb: t('Reload blocklists'),
+    ok: t('Blocklists reloaded'),
+    fn: async () => {
+      await api.reloadBlocklists();
+      await loadBlocklists();
+    },
+  }).catch(() => {});
+}
 
-
-
-
-
-
-/** Escape hatch for a deployment whose own configuration broke it: the reset
- *  route lives beside /healthz and needs only the dashboard password, so it
- *  works even when /api/* no longer answers. */
 async function resetWorker() {
   const pw = window.prompt(
     t('Wipes settings, routes and custom rules on the worker.') + '\n' + t('Deployment variables and the query log stay.') + '\n\n' + t('Dashboard password:')
@@ -191,7 +225,6 @@ async function resetWorker() {
     },
   }).catch(() => {});
 }
-
 </script>
 
 <template>
@@ -374,8 +407,6 @@ async function resetWorker() {
       </div>
     </section>
 
-    </section>
-
     <section
       v-for="form in FORMS"
       :key="form.id"
@@ -396,10 +427,6 @@ async function resetWorker() {
 
       <div class="px-5 py-4">
         <form class="flex flex-wrap items-center gap-2.5" @submit.prevent="add(form)">
-          <!-- The plain @input mirror is deliberate: v-model's default handler
-               ignores input events while an IME marks the text as composing
-               (Gboard commits per word), so validity would not light up until
-               blur or a non-letter keystroke ended the composition. -->
           <input
             v-model="draft[form.key]"
             @input="draft[form.key] = $event.target.value"
