@@ -251,7 +251,7 @@ async function rebuildBlocklist(kv) {
         continue;
       }
       const rawEx = p.exceptions;
-      const items = rawEx instanceof Set ? [...rawEx] : (Array.isArray(rawEx) ? rawEx : (typeof p.exceptionRules === 'function' ? p.exceptionRules().map((r) => (typeof r === 'string' ? r : r.domain)) : []));
+      const items = rawEx instanceof Set ? Array.from(rawEx) : (Array.isArray(rawEx) ? rawEx : (typeof p.exceptionRules === 'function' ? p.exceptionRules().map((r) => (typeof r === 'string' ? r : r.domain)) : []));
       for (const d of p.domains) entries.add(d);
       rows.push({ url, entries: p.domains.size, loadedAt: Date.now(), error: null, etag: null, exItems: items });
     }
@@ -1190,5 +1190,12 @@ export default {
     }
 
     return new Response('Method Not Allowed', { status: 405 });
+  },
+  /** @param {any} event @param {Env} env @param {ExecutionContext} ctx */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(Promise.all([
+      ensureBlocklist(env, ctx, true),
+      callTifBuilder(env).catch(() => {}),
+    ]));
   },
 };

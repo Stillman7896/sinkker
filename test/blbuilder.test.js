@@ -2,17 +2,30 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BlocklistBuilder } from '../src/blbuilder.js';
 
+/** @typedef {{url: string, entries: number, loadedAt: number, error: string|null, etag: string|null, exItems: string[]}} SourceRow */
+/** @typedef {{ok: boolean, v?: number, total?: number, chunkCount?: number, spans?: unknown, sources?: SourceRow[], loadedAt?: number, cleaned?: number, cleanupIncomplete?: boolean, error?: string}} BuildResult */
+
+/** @param {SourceRow[]} rows @param {string} url @returns {SourceRow|undefined} */
+function findSource(rows, url) {
+  return rows.find((s) => s.url === url);
+}
+
 function kvMock() {
+  /** @type {Map<string, any>} */
   const map = new Map();
   return {
     map,
+    /** @param {string} key @param {string} [type] @returns {Promise<any>} */
     async get(key, type) {
       const v = map.has(key) ? map.get(key) : null;
       if (v === null) return null;
       return type === 'json' ? JSON.parse(v) : v;
     },
+    /** @param {string} key @param {any} val @returns {Promise<void>} */
     async put(key, val) { map.set(key, val); },
+    /** @param {string} key @returns {Promise<void>} */
     async delete(key) { map.delete(key); },
+    /** @param {{prefix?: string}} [opts] @returns {Promise<{keys: Array<{name: string}>, list_complete: boolean, cursor: string}>} */
     async list(opts) {
       const p = (opts && opts.prefix) || '';
       return {
@@ -55,19 +68,21 @@ test('BlocklistBuilder: builds union chunks without stack-sensitive spreads', as
     const res = await builder.fetch(new Request('https://bl/build?urls=' + encodeURIComponent(A_URL + ',' + B_URL)));
     assert.equal(res.status, 200);
 
-    const data = await res.json();
+    const data = /** @type {BuildResult} */ (await res.json());
     assert.equal(data.ok, true);
     assert.equal(data.total, 3, 'ads.example.com is deduped and sub.ads.example.com collapses into ads.example.com');
 
-    const meta = JSON.parse(await kv.get('bl:meta'));
+    const meta = JSON.parse(String(await kv.get('bl:meta')));
     assert.equal(meta.v, data.v);
     assert.equal(meta.total, data.total);
-    assert.equal(meta.sources.length, 2);
 
-    const a = meta.sources.find((s) => s.url === A_URL);
-    const b = meta.sources.find((s) => s.url === B_URL);
-    assert.ok(a);
-    assert.ok(b);
+    const metaSources = /** @type {SourceRow[]} */ (meta.sources);
+    assert.equal(metaSources.length, 2);
+
+    const a = findSource(metaSources, A_URL);
+    const b = findSource(metaSources, B_URL);
+    assert.ok(a, 'source A exists');
+    assert.ok(b, 'source B exists');
     assert.equal(a.etag, '"a"');
     assert.deepEqual(a.exItems, ['clean.example.com']);
     assert.equal(b.error, null);
@@ -98,12 +113,15 @@ test('BlocklistBuilder: one failed source is reported, successful sources still 
     const res = await builder.fetch(new Request('https://bl/build?urls=' + encodeURIComponent(A_URL + ',' + B_URL)));
     assert.equal(res.status, 200);
 
-    const data = await res.json();
+    const data = /** @type {BuildResult} */ (await res.json());
     assert.equal(data.ok, true);
     assert.equal(data.total, 2);
 
-    const a = data.sources.find((s) => s.url === A_URL);
-    const b = data.sources.find((s) => s.url === B_URL);
+    const sources = data.sources ?? [];
+    const a = findSource(sources, A_URL);
+    const b = findSource(sources, B_URL);
+    assert.ok(a, 'failed source A is reported');
+    assert.ok(b, 'successful source B is reported');
     assert.match(String(a.error), /HTTP 500/);
     assert.equal(b.error, null);
   } finally {
@@ -121,9 +139,9 @@ test('BlocklistBuilder: all sources failing returns 500 and does not publish an 
     const res = await builder.fetch(new Request('https://bl/build?urls=' + encodeURIComponent(A_URL)));
     assert.equal(res.status, 500);
 
-    const data = await res.json();
+    const data = /** @type {BuildResult} */ (await res.json());
     assert.equal(data.ok, false);
-    assert.match(data.error, /no entries parsed/);
+    assert.match(String(data.error), /no entries parsed/);
     assert.equal(await kv.get('bl:meta'), null, 'existing/fresh meta must not be replaced by an empty build');
   } finally {
     globalThis.fetch = orig;

@@ -1,14 +1,15 @@
 // src/blbuilder.js - Durable Object build farm for blocklist subscriptions.
 //
 // This runs the expensive fetch/parse/chunk work off the DNS hot path.
-// Important: do not use array.push(...hugeArray). Spreading 100k+ entries as
-// function arguments overflows the JavaScript call stack. Iterate instead.
+// Do not use array.push(...hugeArray): spreading 100k+ entries as function
+// arguments overflows the JavaScript call stack. Iterate instead.
 
 import { pipeRebuild } from './blobpipe.js';
 import {
   parseBlocklist,
   collapseSuffixes,
   MAX_SOURCE_ENTRIES,
+  MAX_SOURCE_BYTES,
   BLOCKLIST_ENTRY_LIMIT,
 } from './blocklist.js';
 
@@ -19,15 +20,15 @@ function pushAll(target, source) {
 
 /** @param {Iterable<string>} source @returns {string[]} */
 function toArray(source) {
+  /** @type {string[]} */
   const out = [];
   pushAll(out, source);
   return out;
 }
 
 export class BlocklistBuilder {
-  /** @param {DurableObjectState} state @param {Env} env */
-  constructor(state, env) {
-    this.state = state;
+  /** @param {any} _state @param {Env} env */
+  constructor(_state, env) {
     this.env = env;
     this.building = false;
   }
@@ -70,6 +71,10 @@ export class BlocklistBuilder {
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
         const text = await res.text();
+        if (text.length > MAX_SOURCE_BYTES) {
+          throw new Error('document over the per-list byte cap');
+        }
+
         const parsed = parseBlocklist(text);
         const domains = collapseSuffixes(parsed.domains);
 
@@ -124,7 +129,7 @@ export class BlocklistBuilder {
       if (entrySet.size > BLOCKLIST_ENTRY_LIMIT) {
         return Response.json({
           ok: false,
-          error: `merged entries exceed the ${BLOCKLIST_ENTRY_LIMIT.toLocaleString()} free-plan ceiling`,
+          error: 'merged entries exceed the free-plan ceiling',
           sources,
         }, { status: 500 });
       }
