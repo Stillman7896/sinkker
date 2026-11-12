@@ -16,6 +16,7 @@ import { pipeRebuild } from './blobpipe.js';
 import { Xor16 } from './xorfilter.js';
 import { callTifBuilder } from './tifdo.js';
 export { TifBuilder } from './tifdo.js'; // Durable Object class (see tifdo.js)
+export { BlocklistBuilder } from './blbuilder.js'; // Durable Object class (see blbuilder.js)
 
 /** @typedef {import('./bloblist.js').BlobSource} BlobSource */
 import { RuleStore, RULES_KEY, LEGACY_RULE_PREFIX } from './rules.js';
@@ -271,6 +272,44 @@ async function rebuildBlocklist(kv) {
 async function refreshBlocklist(env, kv, ctx) {
   const urls = await blocklistUrls(env);
   if (!urls.length) return;
+  
+  // Delegate to Durable Object if available
+  if (env.BL_BUILDER) {
+    try {
+      const ns = env.BL_BUILDER;
+      const id = ns.idFromName("builder");
+      const stub = ns.get(id);
+      const reqUrl = `https://bl/build?urls=${encodeURIComponent(urls.join(','))}`;
+      const res = await stub.fetch(new Request(reqUrl));
+      const data = await res.json();
+      
+      if (data.ok) {
+        // Reload from KV after DO update
+        await blocklist.loadMeta(kv);
+        return;
+      } else {
+        console.error('[bl-builder] DO build failed:', data.error);
+        // Fallback to inline if DO fails critically? Or just report error.
+        // For robustness, if DO fails, we might want to try inline, but that defeats purpose.
+        // Let's assume DO handles it. If it returns ok:false with specific errors, log them.
+        throw new Error(data.error || 'DO build failed');
+      }
+    } catch (e) {
+      console.error('[bl-builder] exception:', e);
+      // Fallback to legacy inline path ONLY if DO binding missing/erroring unexpectedly
+      if (!env.BL_BUILDER) {
+         await legacyRefreshBlocklist(env, kv, ctx, urls);
+      } else {
+         throw e;
+      }
+    }
+  } else {
+    await legacyRefreshBlocklist(env, kv, ctx, urls);
+  }
+}
+
+/** Legacy inline refresh for deployments without BL_BUILDER DO */
+async function legacyRefreshBlocklist(env, kv, ctx, urls) {
   failedSources.clear();
   refusedSources.clear();
   const settled = await Promise.allSettled(urls.map((u) => ensureBlocklistSource(u, false, ctx)));
@@ -284,8 +323,6 @@ async function refreshBlocklist(env, kv, ctx) {
   }
   if (!stagedSources.size) {
     if (refusedSources.size) {
-      // Budget refusals degrade: keep serving existing chunks, mark the
-      // source on the panel; a cold deploy gets an empty (harmless) list.
       /** @type {BlobSource[]} */
       const rows = [];
       if (blocklist.version >= 0) {
