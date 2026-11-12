@@ -101,6 +101,31 @@ const GUIDES = [
 const currentGuide = computed(() => GUIDES.find((g) => g.id === guide.value) || GUIDES[0]);
 const snippet = computed(() => (currentGuide.value.snippet || '').replaceAll('{endpoint}', endpoint));
 
+// Test connection: fire a real DoH query from this browser at the endpoint.
+// A valid dns-message answer means this device can reach this sinkker.
+const TEST_QUERY = 'q80BAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE'; // example.com A
+const testOpen = ref(false);
+const testResult = ref(null);
+
+async function testConnection() {
+  testOpen.value = true;
+  testResult.value = null;
+  await runOp('overview.test', {
+    verb: t('Test connection'),
+    ok: t('Connected'),
+    fn: async () => {
+      try {
+        const res = await fetch(`${endpoint}?dns=${TEST_QUERY}`, { headers: { accept: 'application/dns-message' } });
+        const buf = await res.arrayBuffer();
+        testResult.value = res.ok && buf.byteLength > 12 ? 'ok' : 'fail';
+      } catch {
+        testResult.value = 'fail';
+      }
+      if (testResult.value !== 'ok') throw new Error('DoH test failed');
+    },
+  });
+}
+
 async function refresh() {
   await runOp('overview.refresh', { verb: t('Refresh overview'), ok: t('Overview up to date'), fn: loadStats });
 }
@@ -125,7 +150,10 @@ async function refresh() {
           <h2 class="text-[15px] font-medium">{{ t('Connect a client') }}</h2>
           <p class="hint mt-0.5">{{ t('Any DoH client pointed at this endpoint is filtered — no agent, no extra deploy.') }}</p>
         </div>
-        <AppButton small variant="solid" @click="setupOpen = true">{{ t('Setup guide') }}</AppButton>
+        <div class="flex items-center gap-2">
+          <AppButton small @click="testConnection">{{ t('Test connection') }}</AppButton>
+          <AppButton small variant="solid" @click="setupOpen = true">{{ t('Setup guide') }}</AppButton>
+        </div>
       </div>
 
       <div class="mt-4">
@@ -210,6 +238,28 @@ async function refresh() {
         <div class="flex items-center justify-between gap-3">
           <span class="hint">{{ t('DoH only — plain port 53 is not served by this worker.') }}</span>
           <AppButton small @click="setupOpen = false">{{ t('Done') }}</AppButton>
+        </div>
+      </template>
+    </Modal>
+
+    <Modal :open="testOpen" :title="t('Test connection')" @close="testOpen = false">
+      <div
+        class="rounded-lg border p-4 text-center"
+        :class="testResult === 'ok' ? 'border-pass text-pass' : testResult === 'fail' ? 'border-block text-block' : ''"
+      >
+        <p class="text-[15px] font-medium" aria-live="polite">
+          <template v-if="testResult === 'ok'">{{ t('This device is connected to this sinkker') }}</template>
+          <template v-else-if="testResult === 'fail'">{{ t("This device isn't connected to this sinkker") }}</template>
+          <template v-else>{{ t('Testing…') }}</template>
+        </p>
+        <p class="hint mt-1">
+          {{ testResult === 'fail' ? t('Check the endpoint URL and your network — the DoH endpoint must be reachable from this browser.') : endpoint }}
+        </p>
+      </div>
+      <template #footer>
+        <div class="flex items-center justify-between gap-3">
+          <span class="hint">{{ t('Sends a real DNS query for example.com.') }}</span>
+          <AppButton small @click="testOpen = false">{{ t('Done') }}</AppButton>
         </div>
       </template>
     </Modal>
