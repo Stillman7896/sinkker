@@ -65,6 +65,10 @@ and is shared across every colo.
 | `cnameUncloaking` | `false` | `settings:main` |
 | `tifProtection` | `false` | `settings:main` |
 | `blocklistUrls` | `null` (deploy var) | `settings:main` |
+| `blocklistPreset` | `''` (custom/deploy) | `settings:main` |
+| `blocklistNsfw` | `false` | `settings:main` |
+| `blocklistSocial` | `false` | `settings:main` |
+| `blocklistGambling` | `false` | `settings:main` |
 | `logPassed` | `true` | `settings:main` |
 | `logRetentionDays` | `30` | `settings:main` |
 | `upstreamPreset` | `''` (deploy var, else Quad9) | `settings:main` |
@@ -220,6 +224,16 @@ dropping one subscription frees only that document's entries. Each `@@`
 exception applies to the whole union.
 
 Which documents run is a tri-state, stored in `settings:main` as `blocklistUrls`:
+
+### Preset Profiles & Category Switches
+
+To simplify UX, the dashboard offers **Hagezi preset profiles** (`light`, `pro`, `pro-plus`, `ultimate`) and independent **category switches** (`nsfw`, `social`, `gambling`). These are stored in `settings:main` alongside `blocklistUrls`.
+
+*   **Main List**: Selecting a preset sets `blocklistPreset` and clears `blocklistUrls` (unless custom mode is active). The worker resolves this into the corresponding raw GitHub URL.
+*   **Categories**: Toggling NSFW/Social/Gambling adds their respective Hagezi URLs to the effective subscription list, regardless of the main preset chosen.
+*   **Custom Mode**: If `blocklistPreset` is empty (`""`), the system falls back to managing individual URLs via `blocklistUrls` (the traditional behavior). This allows full user control for non-Hagezi lists.
+
+The resolution logic lives in `src/blocklist.js` (`resolveSubscriptionUrls`). It ensures no duplicate URLs are fetched and respects the priority: Preset > Custom URLs > Deploy Var.
 
 | Value | Meaning |
 |---|---|

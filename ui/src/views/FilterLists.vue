@@ -57,6 +57,13 @@ const FORMS = [
 
 const draft = ref({ tld: '', keyword: '', regex: '' });
 const blDraft = ref('');
+const blProblem = computed(() => {
+  const v = blDraft.value.trim();
+  if (!v) return '';
+  if (!isHttpsUrl(v)) return t('Needs an https:// URL — the worker fetches the list over https.');
+  if (subs.value.some((s) => s.url === v)) return t('That blocklist is already subscribed.');
+  return '';
+});
 
 const items = (id) => (id === 'tlds' ? state.tlds : id === 'regex' ? state.regex : state.keywords);
 const typed = (form) => draft.value[form.key].trim();
@@ -111,62 +118,60 @@ const blLimit = computed(() => blocklist.value?.entryLimit ?? BLOCKLIST_ENTRY_LI
 const atMax = computed(() => subs.value.length >= blMax.value);
 const overLimit = computed(() => blTotal.value > blLimit.value);
 
-const blProblem = computed(() => {
-  const v = blDraft.value.trim();
-  if (!v) return '';
-  if (!isHttpsUrl(v)) return t('Needs an https:// URL — the worker fetches the list over https.');
-  if (subs.value.some((s) => s.url === v)) return t('That blocklist is already subscribed.');
-  return '';
+const currentPreset = computed(() => blocklist.value?.preset || '');
+const categories = computed(() => blocklist.value?.categories || { nsfw: false, social: false, gambling: false });
+const isCustomMode = computed(() => currentPreset.value === '' && Array.isArray(blocklist.value?.subscriptions));
+const customSubs = computed(() => {
+  if (!isCustomMode.value) return [];
+    // In custom mode, all subs are treated as custom unless we track them separately.
+  // For simplicity in this UI refactor, if preset is '', all shown subs are custom.
+  return subs.value.filter(s => s.source !== 'deploy'); 
 });
+
+async function selectPreset(p) {
+  await runOp('lists.blocklist.preset', {
+    verb: t('Select main list'),
+    ok: () => t('Main list set to {p}').replace('{p}', p),
+    fn: async () => {
+      await api.saveSettings({ blocklistPreset: p, blocklistUrls: null });
+      await loadBlocklists();
+    },
+  }).catch(() => {});
+}
+
+async function switchToCustom() {
+  await runOp('lists.blocklist.custom', {
+    verb: t('Switch to custom'),
+    ok: () => t('Custom mode enabled'),
+    fn: async () => {
+      // Clear preset, keep existing URLs as custom base if any, or start empty
+      await api.saveSettings({ blocklistPreset: '', blocklistUrls: [] });
+      await loadBlocklists();
+    },
+  }).catch(() => {});
+}
+
+async function toggleCategory(cat, val) {
+  const key = `blocklist${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+  await runOp(`lists.blocklist.cat.${cat}`, {
+    verb: `${val ? t('Enable') : t('Disable')} ${cat.toUpperCase()}`,
+    ok: () => `${cat.toUpperCase()} ${val ? t('enabled') : t('disabled')}`,
+    fn: async () => {
+      await api.saveSettings({ [key]: val });
+      await loadBlocklists();
+    },
+  }).catch(() => {});
+}
+
 const blCanAdd = computed(() => isHttpsUrl(blDraft.value.trim()) && !blProblem.value && !atMax.value);
 
-async function addBlocklist() {
-  const url = blDraft.value.trim();
-  if (!blCanAdd.value) return;
-  try {
-    await runOp('lists.blocklist.add', {
-      verb: t('Add blocklist'),
-      ok: (r) => `${r.subscriptions.length} ${r.subscriptions.length === 1 ? t('subscription') : t('subscriptions')}`,
-      undo: async () => {
-        await api.removeBlocklist(url);
-        await loadBlocklists();
-      },
-      fn: async () => {
-        const r = await api.addBlocklist(url);
-        await loadBlocklists();
-        return r;
-      },
-    });
-    blDraft.value = '';
-  } catch { /* the alert stack carries the reason */ }
-}
 
-async function removeBlocklist(url) {
-  await runOp(`lists.blocklist.del:${url}`, {
-    verb: t('Remove blocklist'),
-    ok: t('Blocklist removed'),
-    undo: async () => {
-      await api.addBlocklist(url);
-      await loadBlocklists();
-    },
-    fn: async () => {
-      await api.removeBlocklist(url);
-      await loadBlocklists();
-      return url;
-    },
-  }).catch(() => {});
-}
 
-async function reloadBlocklists() {
-  await runOp('lists.blocklist.reload', {
-    verb: t('Reload blocklists'),
-    ok: t('Blocklists reloaded'),
-    fn: async () => {
-      await api.reloadBlocklists();
-      await loadBlocklists();
-    },
-  }).catch(() => {});
-}
+
+
+
+
+
 
 /** Escape hatch for a deployment whose own configuration broke it: the reset
  *  route lives beside /healthz and needs only the dashboard password, so it
@@ -196,7 +201,7 @@ async function resetWorker() {
       <p class="hint mt-1">{{ t('Remote blocklist subscriptions and three plain lists that decide on their own.') }}</p>
     </div>
 
-    <!-- Blocklist subscriptions: the worker holds these in memory -->
+    <!-- Blocklist subscriptions: presets, switches, custom -->
     <section class="panel overflow-hidden">
       <div class="px-5 py-4 border-b border-line flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 class="text-[15px] font-medium">{{ t('Blocklist subscriptions') }}</h2>
@@ -213,75 +218,138 @@ async function resetWorker() {
           class="ml-auto"
           @click="reloadBlocklists"
         >
-          {{ t('Reload') }}
+          {{ t('Update now') }}
         </AppButton>
       </div>
 
-      <div class="px-5 py-4">
-        <form class="flex flex-wrap items-center gap-2.5" @submit.prevent="addBlocklist">
-          <input
-            v-model="blDraft"
-            @input="blDraft = $event.target.value"
-            type="url"
-            class="field flex-1 min-w-[220px] st"
-            placeholder="https://raw.githubusercontent.com/…/domains"
-            :aria-label="t('Blocklist URL to subscribe')"
-            autocapitalize="none"
-            spellcheck="false"
-            :aria-invalid="Boolean(blProblem)"
-          />
-          <AppButton
-            variant="solid"
-            type="submit"
-            busy-key="lists.blocklist.add"
-            :disabled="!blCanAdd"
-          >
-            {{ t('Add blocklist') }}
-          </AppButton>
-        </form>
+      <div class="px-5 py-4 space-y-4">
+        <!-- Main List Selector -->
+        <fieldset class="border-0 p-0 m-0">
+          <legend class="sr-only">{{ t('Main list') }}</legend>
+          <div class="flex flex-wrap gap-2">
+            <label
+              v-for="p in ['light', 'pro', 'pro-plus', 'ultimate']"
+              :key="p"
+              class="inline-flex items-center gap-2 px-3 h-9 rounded-md border cursor-pointer select-none transition-colors"
+              :class="[
+                currentPreset === p ? 'border-beacon bg-beacon/10 text-ink' : 'border-line text-muted hover:border-muted/60',
+                state.ops['lists.blocklist.preset'] && 'pointer-events-none opacity-70'
+              ]"
+            >
+              <input
+                type="radio"
+                name="mainList"
+                :value="p"
+                :checked="currentPreset === p"
+                :disabled="state.ops['lists.blocklist.preset']"
+                class="sr-only"
+                @change="selectPreset(p)"
+              />
+              <span class="capitalize st text-[13px] font-medium">{{ p.replace('-', ' ') }}</span>
+            </label>
+            
+            <label
+              class="inline-flex items-center gap-2 px-3 h-9 rounded-md border cursor-pointer select-none transition-colors"
+              :class="[
+                currentPreset === '' && isCustomMode ? 'border-beacon bg-beacon/10 text-ink' : 'border-line text-muted hover:border-muted/60'
+              ]"
+            >
+              <input
+                type="radio"
+                name="mainList"
+                value=""
+                :checked="currentPreset === '' && isCustomMode"
+                :disabled="state.ops['lists.blocklist.preset'] || state.ops['lists.blocklist.custom']"
+                class="sr-only"
+                @change="switchToCustom()"
+              />
+              <span class="st text-[13px] font-medium">{{ t('Custom') }}</span>
+            </label>
+          </div>
+        </fieldset>
 
-        <p class="hint mt-2.5" :class="blProblem && 'text-block'" aria-live="polite">
-          {{ blProblem || t('Each subscription is fetched over https and merged in memory; the union answers every query.') }}
-        </p>
-
-        <div v-if="subs.length" class="mt-4 divide-y divide-line/70">
-          <div
-            v-for="s in subs"
-            :key="s.url"
-            class="py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1"
-          >
-            <div class="min-w-0 flex-1">
-              <span class="st text-[13px] break-all" :title="s.url">{{ s.url }}</span>
-              <span
-                v-if="s.source === 'deploy'"
-                class="ml-2 st text-[11px] rounded border border-beacon/40 text-beacon px-1.5 py-0.5 align-middle"
-                :title="t('Comes from the BLOCKLIST_URL deployment variable — editable and deletable like any other.')"
-              >
-                {{ t('default') }}
-              </span>
-            </div>
-            <div class="flex items-baseline gap-3 text-[12.5px] text-muted st">
-              <span>{{ s.entries.toLocaleString() }} {{ t('entries') }}</span>
-              <span v-if="s.exceptions">· {{ s.exceptions.toLocaleString() }} {{ t('except.') }}</span>
-              <span
-                v-if="s.error"
-                class="text-block"
-                :title="s.error"
-              >
-                · {{ s.error }}
-              </span>
-            </div>
-            <ConfirmButton
-              small
-              :label="t('Remove')"
-              :armed-label="t('Confirm?')"
-              :busy-key="`lists.blocklist.del:${s.url}`"
-              @confirm="removeBlocklist(s.url)"
+        <!-- Custom URL Input (visible only when Custom is selected) -->
+        <div v-show="currentPreset === '' && isCustomMode" class="pt-2 border-t border-line/70">
+          <form class="flex flex-wrap items-center gap-2.5" @submit.prevent="addBlocklist">
+            <input
+              v-model="blDraft"
+              @input="blDraft = $event.target.value"
+              type="url"
+              class="field flex-1 min-w-[220px] st"
+              placeholder="https://raw.githubusercontent.com/…/domains"
+              :aria-label="t('Blocklist URL to subscribe')"
+              autocapitalize="none"
+              spellcheck="false"
+              :aria-invalid="Boolean(blProblem)"
             />
+            <AppButton
+              variant="solid"
+              type="submit"
+              busy-key="lists.blocklist.add"
+              :disabled="!blCanAdd"
+            >
+              {{ t('Add') }}
+            </AppButton>
+          </form>
+          <p class="hint mt-2.5" :class="blProblem && 'text-block'" aria-live="polite">
+            {{ blProblem || t('Each subscription is fetched over https and merged in memory; the union answers every query.') }}
+          </p>
+          
+          <!-- Existing Custom Subs -->
+          <div v-if="customSubs.length" class="mt-4 divide-y divide-line/70">
+            <div
+              v-for="s in customSubs"
+              :key="s.url"
+              class="py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1"
+            >
+              <div class="min-w-0 flex-1">
+                <span class="st text-[13px] break-all" :title="s.url">{{ s.url }}</span>
+              </div>
+              <div class="flex items-baseline gap-3 text-[12.5px] text-muted st">
+                <span>{{ s.entries.toLocaleString() }} {{ t('entries') }}</span>
+                <span v-if="s.exceptions">· {{ s.exceptions.toLocaleString() }} {{ t('except.') }}</span>
+                <span v-if="s.error" class="text-block" :title="s.error">· {{ s.error }}</span>
+              </div>
+              <ConfirmButton
+                small
+                :label="t('Remove')"
+                :armed-label="t('Confirm?')"
+                :busy-key="`lists.blocklist.del:${s.url}`"
+                @confirm="removeBlocklist(s.url)"
+              />
+            </div>
           </div>
         </div>
 
-        <p v-else class="hint mt-3">
+        <!-- Additional Switches -->
+        <fieldset class="border-0 p-0 m-0 pt-2 border-t border-line/70">
+          <legend class="sr-only">{{ t('Additional filters') }}</legend>
+          <div class="space-y-3">
+            <ToggleSwitch
+              :model-value="categories.nsfw"
+              :label="t('NSFW')"
+              :effect="t('Blocks adult content domains.')"
+              :busy-key="'lists.blocklist.cat.nsfw'"
+              @update:model-value="toggleCategory('nsfw', $event)"
+            />
+            <ToggleSwitch
+              :model-value="categories.social"
+              :label="t('Social Networks')"
+              :effect="t('Blocks major social media platforms.')"
+              :busy-key="'lists.blocklist.cat.social'"
+              @update:model-value="toggleCategory('social', $event)"
+            />
+            <ToggleSwitch
+              :model-value="categories.gambling"
+              :label="t('Gambling')"
+              :effect="t('Blocks gambling and betting sites.')"
+              :busy-key="'lists.blocklist.cat.gambling'"
+              @update:model-value="toggleCategory('gambling', $event)"
+            />
+          </div>
+        </fieldset>
+        
+        <p v-if="!subs.length && !categories.nsfw && !categories.social && !categories.gambling" class="hint">
           {{ t('No remote blocklist — every query goes to the upstream unless a rule or filter stops it.') }}
         </p>
       </div>
@@ -304,6 +372,8 @@ async function resetWorker() {
           </AppButton>
         </div>
       </div>
+    </section>
+
     </section>
 
     <section

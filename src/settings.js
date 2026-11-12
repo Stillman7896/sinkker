@@ -37,6 +37,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   //   []    -> the user deleted every entry: no remote list at all
   //   [..]  -> the list the dashboard maintains
   blocklistUrls: null,
+  blocklistPreset: "",
+  blocklistNsfw: false,
+  blocklistSocial: false,
+  blocklistGambling: false,
 });
 
 /** Clamp a candidate retention value; returns 0..3650 or NaN if not a number.

@@ -91,6 +91,10 @@ interface FilterSettings {
    * the dashboard maintains.
    */
   blocklistUrls: string[] | null;
+  blocklistPreset: '' | 'light' | 'pro' | 'pro-plus' | 'ultimate';
+  blocklistNsfw: boolean;
+  blocklistSocial: boolean;
+  blocklistGambling: boolean;
 }
 
 /** One response route: a fixed answer for a domain and its subdomains. */

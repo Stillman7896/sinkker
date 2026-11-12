@@ -67,9 +67,7 @@ export function normalizeBlocklistUrls(value) {
  * @returns {string[]}
  */
 export function effectiveBlocklistUrls(settings, env) {
-  if (Array.isArray(settings.blocklistUrls)) return normalizeBlocklistUrls(settings.blocklistUrls);
-  const fromVar = typeof env.BLOCKLIST_URL === 'string' ? env.BLOCKLIST_URL.trim() : '';
-  return fromVar ? [fromVar] : [DEFAULT_BLOCKLIST_URL];
+  return resolveSubscriptionUrls(settings, env);
 }
 
 /**
@@ -404,4 +402,53 @@ export class Blocklist {
     out.sort((a, b) => a.domain.localeCompare(b.domain));
     return out;
   }
+}
+
+/** Hagezi main-list presets (radio-select in the UI). */
+export const BLOCKLIST_PRESETS = Object.freeze({
+  light: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/light/domains",
+  pro: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/pro/domains",
+  "pro-plus": "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/pro-plus/domains",
+  ultimate: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/ultimate/domains",
+});
+
+/** Category switch URLs appended when their flag is on. */
+export const BLOCKLIST_CATEGORIES = Object.freeze({
+  nsfw: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/nsfw/domains",
+  social: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/social/domains",
+  gambling: "https://raw.githubusercontent.com/cbuijs/hagezi/refs/heads/main/lists/gambling/domains",
+});
+
+/** @param {{blocklistUrls?: string[]|null, blocklistPreset?: string, blocklistNsfw?: boolean, blocklistSocial?: boolean, blocklistGambling?: boolean}} s @param {Env} env */
+export function resolveSubscriptionUrls(s, env) {
+  const out = [];
+  let hasExplicitList = false;
+
+  // Preset takes precedence if set
+  const pKey = /** @type {keyof typeof BLOCKLIST_PRESETS} */ (s.blocklistPreset);
+  if (pKey && BLOCKLIST_PRESETS[pKey]) {
+    out.push(BLOCKLIST_PRESETS[pKey]);
+    hasExplicitList = true;
+  } else if (Array.isArray(s.blocklistUrls)) {
+    // Explicitly saved list (even if empty []) disables the deploy var fallback
+    out.push(...normalizeBlocklistUrls(s.blocklistUrls));
+    hasExplicitList = true;
+  } 
+  
+  if (!hasExplicitList) {
+    // Fallback chain: Deploy Var -> Built-in Default
+    const v = typeof env.BLOCKLIST_URL === "string" ? env.BLOCKLIST_URL.trim() : "";
+    if (v) {
+      out.push(v);
+    } else {
+      out.push(DEFAULT_BLOCKLIST_URL);
+    }
+  }
+
+  // Categories append if enabled and not already present
+  if (s.blocklistNsfw && !out.includes(BLOCKLIST_CATEGORIES.nsfw)) out.push(BLOCKLIST_CATEGORIES.nsfw);
+  if (s.blocklistSocial && !out.includes(BLOCKLIST_CATEGORIES.social)) out.push(BLOCKLIST_CATEGORIES.social);
+  if (s.blocklistGambling && !out.includes(BLOCKLIST_CATEGORIES.gambling)) out.push(BLOCKLIST_CATEGORIES.gambling);
+  
+  return normalizeBlocklistUrls(out);
 }

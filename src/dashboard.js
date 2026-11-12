@@ -12,6 +12,7 @@ import { normalizeRoute } from './routing.js';
 import { normalizeTld, normalizeKeyword, normalizeRegex } from './lists.js';
 import {
   effectiveBlocklistUrls,
+  BLOCKLIST_PRESETS,
   normalizeBlocklistUrls,
   MAX_BLOCKLIST_URLS,
   BLOCKLIST_ENTRY_LIMIT,
@@ -70,6 +71,13 @@ function blocklistPayload(settings, env, ctx) {
     totalExceptions: ctx.blocklist ? ctx.blocklist.exceptionSize : 0,
     maxUrls: MAX_BLOCKLIST_URLS,
     entryLimit: BLOCKLIST_ENTRY_LIMIT,
+    preset: settings.blocklistPreset || '',
+    categories: {
+      nsfw: Boolean(settings.blocklistNsfw),
+      social: Boolean(settings.blocklistSocial),
+      gambling: Boolean(settings.blocklistGambling),
+    },
+    presets: Object.keys(BLOCKLIST_PRESETS),
   };
 }
 
@@ -194,7 +202,7 @@ function ensureLogsFts(logs) {
 function settingsPatch(source, current = {}) {
   /** @type {Partial<FilterSettings>} */
   const patch = {};
-  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover', 'cnameUncloaking', 'tifProtection']);
+  const BOOL_KEYS = /** @type {const} */ (['rebindProtection', 'idnBlock', 'tldBlock', 'keywordBlock', 'regexBlock', 'logPassed', 'upstreamFailover', 'cnameUncloaking', 'tifProtection', 'blocklistNsfw', 'blocklistSocial', 'blocklistGambling']);
   for (const k of BOOL_KEYS) {
     if (typeof source[k] === 'boolean') patch[k] = source[k]; // k is a boolean key
   }
@@ -217,6 +225,14 @@ function settingsPatch(source, current = {}) {
       return { error: `blocklist URLs must be unique https:// links (max ${MAX_BLOCKLIST_URLS})` };
     }
     patch.blocklistUrls = urls === null ? null : clean;
+  }
+
+  if ('blocklistPreset' in source) {
+    const p = source.blocklistPreset;
+    if (typeof p !== 'string' || (p !== '' && !BLOCKLIST_PRESETS[/** @type {keyof typeof BLOCKLIST_PRESETS} */ (p)])) {
+      return { error: 'invalid blocklist preset' };
+    }
+    patch.blocklistPreset = /** @type {'' | 'light' | 'pro' | 'pro-plus' | 'ultimate'} */ (p);
   }
 
   if ('blockedResponse' in source) {
