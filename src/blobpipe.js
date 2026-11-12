@@ -9,9 +9,10 @@ function chunkKey(prefix, v, i) {
   return prefix + ':c:' + v + ':' + i;
 }
 
-/** @param {string[]} entries @param {number} target */
+/** @param {string[]|Set<string>} entries @param {number} target */
 function packChunks(entries, target) {
-  const uniq = [...new Set(entries)].sort();
+  const uniq = entries instanceof Set ? Array.from(entries) : Array.from(new Set(entries));
+  uniq.sort();
   const chunks = [];
   const spans = [];
   let cur = [], size = 0;
@@ -34,7 +35,7 @@ function packChunks(entries, target) {
   return { chunks, spans, total: uniq.length };
 }
 
-/** @param {KVLike} kv @param {string} prefix @param {{entries: string[], exceptions?: string[], sources?: Array<string|BlobSource>}} opts */
+/** @param {KVLike} kv @param {string} prefix @param {{entries: string[]|Set<string>, exceptions?: string[], sources?: Array<string|BlobSource>}} opts */
 async function pipeRebuild(kv, prefix, opts) {
   const rows = (opts.sources || []).map((s) => typeof s === 'string'
     ? { url: s, entries: 0, loadedAt: Date.now(), error: null, etag: null, exItems: [], exceptions: 0 }

@@ -259,7 +259,7 @@ async function rebuildBlocklist(kv) {
       rows.push({ url, entries: 0, loadedAt: Date.now(), error: msg, etag: null, exItems: [] });
     }
     if (!entries.size) return;
-    const meta = await pipeRebuild(kv, 'bl', { entries: [...entries], exceptions: [], sources: rows });
+    const meta = await pipeRebuild(kv, 'bl', { entries, exceptions: [], sources: rows });
     await blocklist.loadFromKV(kv, meta);
   } finally {
     rebuildInFlight = false;
@@ -272,40 +272,36 @@ async function rebuildBlocklist(kv) {
 async function refreshBlocklist(env, kv, ctx) {
   const urls = await blocklistUrls(env);
   if (!urls.length) return;
-  
-  // Delegate to Durable Object if available
+
   if (env.BL_BUILDER) {
     try {
       const ns = env.BL_BUILDER;
-      const id = ns.idFromName("builder");
-      const stub = ns.get(id);
-      const reqUrl = `https://bl/build?urls=${encodeURIComponent(urls.join(','))}`;
-      const res = await stub.fetch(new Request(reqUrl));
-      const data = await res.json();
-      
-      if (data.ok) {
-        // Reload from KV after DO update
+      const stub = ns.get(ns.idFromName('builder'));
+      const res = await stub.fetch(new Request('https://bl/build?urls=' + encodeURIComponent(urls.join(','))));
+      const data = await res.json().catch(() => null);
+
+      if (data && data.ok) {
         await blocklist.loadMeta(kv);
         return;
-      } else {
-        console.error('[bl-builder] DO build failed:', data.error);
-        // Fallback to inline if DO fails critically? Or just report error.
-        // For robustness, if DO fails, we might want to try inline, but that defeats purpose.
-        // Let's assume DO handles it. If it returns ok:false with specific errors, log them.
-        throw new Error(data.error || 'DO build failed');
       }
+
+      const msg = (data && data.error) || ('DO build failed HTTP ' + res.status);
+      console.error('[bl-builder] DO build failed:', msg);
+
+      // Stale-if-error: a previously published chunk set is better than no DNS filtering.
+      if (blocklist.version >= 0) return;
+
+      throw new Error(msg);
     } catch (e) {
-      console.error('[bl-builder] exception:', e);
-      // Fallback to legacy inline path ONLY if DO binding missing/erroring unexpectedly
-      if (!env.BL_BUILDER) {
-         await legacyRefreshBlocklist(env, kv, ctx, urls);
-      } else {
-         throw e;
-      }
+      console.error('[bl-builder] exception:', e instanceof Error ? e.message : e);
+
+      if (blocklist.version >= 0) return;
+
+      throw e;
     }
-  } else {
-    await legacyRefreshBlocklist(env, kv, ctx, urls);
   }
+
+  await legacyRefreshBlocklist(env, kv, ctx, urls);
 }
 
 /** Legacy inline refresh for deployments without BL_BUILDER DO */

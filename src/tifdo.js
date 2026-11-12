@@ -35,7 +35,7 @@ export async function buildTif(kv, url) {
   if (!res.ok) throw new Error('tif HTTP ' + res.status + ' for ' + url);
   const set = parseTifText(await res.text());
   if (!set.size) throw new Error('tif: no entries parsed');
-  const entries = [...set];
+  const entries = Array.from(set);
   const etag = res.headers.get('etag');
   const packed = await pipeRebuild(kv, 'tif', {
     entries,
