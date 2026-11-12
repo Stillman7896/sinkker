@@ -49,7 +49,6 @@ id = "c1274ab8f14b4dfcac2cd91af7bfda82"
 #   MAX_SOURCE_ENTRIES     = 400_000    per-document entry cap (refused before parse)
 #   MAX_SOURCE_BYTES       = 24 MiB     per-document size cap (refused before parse)
 
-
 # D1 database, optional but enables the logs tab
 #   wrangler d1 create dns-logs
 #   wrangler d1 execute dns-logs --file=./schema.sql
@@ -74,7 +73,7 @@ new_sqlite_classes = ["TifBuilder"]
 tag = "v2"
 new_sqlite_classes = ["BlocklistBuilder"]
 
-
 # Daily cron trigger to force blocklist/TIF refresh
-[[triggers]]
+
+[triggers]
 crons = ["0 3 * * *"] # 03:00 UTC daily
