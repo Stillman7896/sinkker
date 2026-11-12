@@ -68,7 +68,11 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["TifBuilder", "BlocklistBuilder"]
+new_sqlite_classes = ["TifBuilder"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["BlocklistBuilder"]
 
 
 # Daily cron trigger to force blocklist/TIF refresh
