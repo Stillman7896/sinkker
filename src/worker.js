@@ -309,6 +309,7 @@ async function refreshBlocklist(env, kv, ctx) {
 }
 
 /** Legacy inline refresh for deployments without BL_BUILDER DO */
+/** @param {Env} env @param {KVLike} kv @param {ExecutionContext|undefined} ctx @param {string[]} urls */
 async function legacyRefreshBlocklist(env, kv, ctx, urls) {
   failedSources.clear();
   refusedSources.clear();

@@ -55,6 +55,8 @@ interface Env {
   DASHBOARD_PASSWORD?: string;
   /** Durable Object that builds the TIF filter + chunks (see tifdo.js). */
   TIF_BUILDER?: { fetch(request: Request): Promise<Response> };
+  BL_BUILDER?: DurableObjectNamespace;
+
 }
 
 /** How a blocked query is answered (see buildBlockedResponse in dns.js). */

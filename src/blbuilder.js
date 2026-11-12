@@ -11,6 +11,7 @@ export class BlocklistBuilder {
     this.building = false;
   }
 
+  /** @param {Request} request */
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/build') {
@@ -76,7 +77,9 @@ export class BlocklistBuilder {
           sources,
         });
 
-        return Response.json({ ok: true, ...packed, hasErrors: hasError });
+        const result = { ...packed };
+        delete result.ok; // Remove potential conflict from pipeRebuild
+        return Response.json({ ok: true, ...result, hasErrors: hasError });
       } catch (e) {
         return Response.json({ ok: false, error: String(e instanceof Error ? e.message : e) }, { status: 500 });
       } finally {
