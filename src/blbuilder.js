@@ -5,6 +5,7 @@ import { pipeRebuild } from './blobpipe.js';
 import { parseBlocklist, collapseSuffixes, MAX_SOURCE_ENTRIES } from './blocklist.js';
 
 export class BlocklistBuilder {
+  /** @param {DurableObjectState} state @param {Env} env */
   constructor(state, env) {
     this.state = state;
     this.env = env;
@@ -77,9 +78,19 @@ export class BlocklistBuilder {
           sources,
         });
 
-        const result = { ...packed };
-        delete result.ok; // Remove potential conflict from pipeRebuild
-        return Response.json({ ok: true, ...result, hasErrors: hasError });
+        // Construct response avoiding duplicate 'ok' key conflicts
+        const payload = {
+          v: packed.v,
+          total: packed.total,
+          chunkCount: packed.chunkCount,
+          spans: packed.spans,
+          sources: packed.sources,
+          loadedAt: packed.loadedAt,
+          cleaned: packed.cleaned,
+          cleanupIncomplete: packed.cleanupIncomplete,
+          hasErrors: hasError
+        };
+        return Response.json({ ok: true, ...payload });
       } catch (e) {
         return Response.json({ ok: false, error: String(e instanceof Error ? e.message : e) }, { status: 500 });
       } finally {
